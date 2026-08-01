@@ -1,0 +1,8 @@
+# 오네시스(Onesis) 백엔드 의존성
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# 3개 AI 공식 SDK
+anthropic==0.69.0
+openai==1.59.6
+google-genai==1.15.0
