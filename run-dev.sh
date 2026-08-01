@@ -30,6 +30,12 @@ else
   export ONESIS_MOCK=1 LOGIN_PASSWORD=test SESSION_SECRET=dev-secret
 fi
 
+# 키가 하나도 없으면 자동으로 데모(mock) 모드로 전환 → 앱이 항상 동작
+if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ] && [ -z "$GEMINI_API_KEY" ]; then
+  export ONESIS_MOCK=1
+  echo "ℹ  API 키가 없어 데모(mock) 모드로 실행합니다. 키를 넣으면 자동으로 진짜 AI로 바뀝니다."
+fi
+
 ./.venv/bin/uvicorn app.main:app --reload --port 8000 &
 BACK=$!
 cd ..
