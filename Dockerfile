@@ -11,10 +11,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # 백엔드 소스 (미리 빌드된 backend/static 포함)
 COPY backend/ ./backend/
 
-# 대화 기록 + 제작 결과물 저장 폴더(영구 볼륨을 여기에 연결)
+# 대화 기록 + 제작 결과물 저장 폴더 (Railway 볼륨이 /data 를 담당 — Docker VOLUME 은 Railway가 미지원)
 ENV DATA_DIR=/data
 ENV BUILDS_DIR=/data/onesis-builds
-VOLUME ["/data"]
 
 WORKDIR /app/backend
 EXPOSE 8000
