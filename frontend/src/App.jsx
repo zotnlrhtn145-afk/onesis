@@ -40,6 +40,8 @@ export default function App() {
   const [online, setOnline] = useState(navigator.onLine)
   const [build, setBuild] = useState(null) // 제작 진행/결과
   const buildAbortRef = useRef(null)
+  const [mockup, setMockup] = useState('') // 화면 미리보기 HTML
+  const [mockupLoading, setMockupLoading] = useState(false)
   const [queueCount, setQueueCount] = useState(queue.count())
   const busyRef = useRef(false) // 토론 진행 중 여부(예약 질문 순차 처리용)
   const activeIdRef = useRef(null)
@@ -98,6 +100,7 @@ export default function App() {
       id: activeId,
       title: conversations.find((c) => c.id === activeId)?.title || '',
       preview,
+      mockup,
       messages: messages
         .filter((m) => !m.refine)
         .map((m) => ({
@@ -107,7 +110,7 @@ export default function App() {
           is_build: m.is_build,
         })),
     })
-  }, [messages, preview, activeId, run, conversations])
+  }, [messages, preview, mockup, activeId, run, conversations])
 
   function showToast(msg) {
     setToast(msg)
@@ -151,6 +154,7 @@ export default function App() {
       // 오프라인에서 수정했지만 아직 동기화 안 된 미리보기가 있으면 그것을 우선 표시
       const pp = pendingPreview.get(id)
       setPreview(pp != null ? pp : conv.preview || '')
+      setMockup(conv.mockup || '')
       setPreviewLive(false)
     }
     try {
@@ -172,6 +176,7 @@ export default function App() {
     setRun(null)
     setRunError('')
     setPreview('')
+    setMockup('')
     setPreviewLive(false)
     setEditing(false)
     setMode('ask')
@@ -197,6 +202,7 @@ export default function App() {
       case 'conversation':
         setActiveId(evt.id)
         if (evt.is_new) {
+          setMockup('')
           setConversations((cs) => [
             { id: evt.id, title: evt.question.slice(0, 60), updated_at: '' },
             ...cs,
@@ -466,6 +472,29 @@ export default function App() {
     setBuild(null)
   }
 
+  // 화면 미리보기(실제 UI 목업) 생성/수정
+  async function onMakeMockup(instruction) {
+    if (!online) {
+      showToast('오프라인에서는 화면을 만들 수 없어요.')
+      return
+    }
+    setMockupLoading(true)
+    try {
+      const r = await api.makeMockup({
+        conversation_id: activeId,
+        brief: instruction ? undefined : preview || '',
+        instruction: instruction || undefined,
+        current_html: instruction ? mockup : undefined,
+      })
+      setMockup(r.html || '')
+    } catch (e) {
+      if (e.message === '401') doLogout()
+      else showToast('화면 생성에 실패했어요. 잠시 후 다시 시도하세요.')
+    } finally {
+      setMockupLoading(false)
+    }
+  }
+
   // ---------- 스플리터 드래그 ----------
   function startDrag(e) {
     e.preventDefault()
@@ -653,6 +682,9 @@ export default function App() {
             }}
             onBuild={onBuild}
             onToast={showToast}
+            mockup={mockup}
+            mockupLoading={mockupLoading}
+            onMakeMockup={onMakeMockup}
           />
         </div>
       </div>

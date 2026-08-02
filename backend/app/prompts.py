@@ -237,3 +237,33 @@ def refine_user(current_doc: str, instruction: str) -> str:
         f"[수정 요청]\n{instruction}\n\n"
         "위 요청을 반영해 문서 전체를 다시 출력하세요."
     )
+
+
+# ---------- 화면 미리보기(실제 UI 목업) ----------
+def mockup_system() -> str:
+    return (
+        "당신은 UI 디자이너 겸 프론트엔드 개발자입니다. 주어진 설명을 바탕으로, 실제 사용자가 "
+        "보게 될 화면을 '완전한 단일 HTML 문서' 하나로 만듭니다.\n"
+        "규칙:\n"
+        "- 반드시 <!doctype html> 로 시작하는 하나의 완결된 HTML 문서.\n"
+        "- 모든 CSS는 문서 안 <style> 에 인라인으로. 외부 링크/폰트/스크립트/이미지 URL 금지.\n"
+        "- 모바일 세로 화면 우선(가로 약 390px 기준), 깔끔하고 현대적인 디자인.\n"
+        "- 아이콘은 이모지로, 사진 자리는 색 배경/그라데이션으로 대체.\n"
+        "- 실제처럼 보이도록 한국어 예시 데이터로 채우기(빈 화면 금지).\n"
+        "- 설명·마크다운·코드펜스(```) 없이 '오직 HTML' 만 출력."
+    )
+
+
+def mockup_user(brief: str) -> str:
+    return (
+        f"[화면 설명/기획]\n{brief}\n\n"
+        "위 내용을 실제 사용자에게 보일 화면 하나로 만들어줘. HTML만 출력."
+    )
+
+
+def mockup_refine_user(current_html: str, instruction: str) -> str:
+    return (
+        f"[현재 화면 HTML]\n{current_html}\n\n"
+        f"[수정 요청]\n{instruction}\n\n"
+        "요청을 반영해 화면 전체 HTML을 다시 출력해줘. HTML만 출력."
+    )

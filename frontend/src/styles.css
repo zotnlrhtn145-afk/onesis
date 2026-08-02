@@ -222,6 +222,56 @@ a { color: var(--accent); }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .preview-empty { color: var(--muted); text-align: center; margin-top: 60px; font-size: 14px; }
+
+/* 미리보기 탭 (기획안 / 화면 미리보기) */
+.pv-tabs { display: flex; gap: 4px; margin-right: auto; }
+.pv-tabs button {
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+  border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.pv-tabs button.on { background: var(--grad); color: #fff; border-color: transparent; }
+.device-toggle { display: flex; gap: 2px; }
+.device-toggle button {
+  border: 1px solid var(--border); background: var(--surface); border-radius: 8px;
+  padding: 5px 9px; font-size: 13px; cursor: pointer;
+}
+.device-toggle button.on { border-color: var(--accent); background: var(--accent-soft, rgba(109, 94, 252, 0.12)); }
+
+/* 화면 미리보기 본문 */
+.preview-body.screen { padding: 0; display: flex; flex-direction: column; background: #e9ebf0; }
+:root[data-theme='dark'] .preview-body.screen { background: #0f1117; }
+.screen-stage { position: relative; flex: 1; display: flex; justify-content: center; overflow: auto; padding: 14px; }
+.screen-stage.desktop { padding: 0; }
+.screen-wrap { background: #fff; overflow: hidden; }
+.screen-stage.mobile .screen-wrap {
+  width: 390px; max-width: 100%; border-radius: 26px; align-self: center; height: 100%;
+  box-shadow: 0 0 0 9px #14151c, 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+.screen-stage.desktop .screen-wrap { width: 100%; height: 100%; }
+.screen-frame { width: 100%; height: 100%; min-height: 480px; border: 0; display: block; background: #fff; }
+.screen-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: rgba(255, 255, 255, 0.65); color: #333; font-weight: 700;
+}
+.screen-make {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; text-align: center; padding: 24px; color: var(--muted);
+}
+.screen-make p { margin: 0; font-size: 14px; }
+.screen-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; }
+.pv-btn.big { padding: 12px 20px; font-size: 14px; border-radius: 12px; }
+
+/* 화면 수정 입력바 */
+.fix-bar { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.fix-bar input {
+  flex: 1; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+  font-size: 13px; background: var(--bg-soft); color: var(--text);
+}
+.fix-bar button {
+  border: 0; background: var(--grad); color: #fff; border-radius: 10px; padding: 9px 16px;
+  font-weight: 700; font-size: 13px; cursor: pointer;
+}
+.fix-bar button:disabled { opacity: 0.5; cursor: default; }
 .live-badge {
   font-size: 10.5px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 999px;
   padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;

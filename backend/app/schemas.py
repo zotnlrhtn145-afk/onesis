@@ -37,3 +37,10 @@ class BuildReq(BaseModel):
 
 class PreviewReq(BaseModel):
     preview: str
+
+
+class MockupReq(BaseModel):
+    conversation_id: Optional[str] = None
+    brief: Optional[str] = None          # 기획안(설명)으로 화면 새로 만들기
+    instruction: Optional[str] = None    # 현재 화면을 수정
+    current_html: Optional[str] = None

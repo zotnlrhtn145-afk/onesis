@@ -36,6 +36,11 @@ def init_db() -> None:
             )
             """
         )
+        # 화면 미리보기(HTML 목업) 컬럼 — 기존 DB에도 없으면 추가
+        try:
+            conn.execute("ALTER TABLE conversations ADD COLUMN mockup TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # 이미 있음
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS messages (
@@ -123,6 +128,14 @@ def update_preview(conversation_id: str, preview: str) -> None:
         conn.execute(
             "UPDATE conversations SET preview=?, updated_at=? WHERE id=?",
             (preview, _now(), conversation_id),
+        )
+
+
+def update_mockup(conversation_id: str, mockup: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE conversations SET mockup=?, updated_at=? WHERE id=?",
+            (mockup, _now(), conversation_id),
         )
 
 

@@ -69,6 +69,13 @@ export const api = {
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ preview }),
     }).then(handle),
+
+  makeMockup: (payload) =>
+    fetch('/api/mockup', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    }).then(handle),
 }
 
 // SSE: fetch + ReadableStream 으로 이벤트를 파싱해 onEvent 로 전달.

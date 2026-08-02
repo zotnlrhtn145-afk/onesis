@@ -33,20 +33,23 @@ def available_ids() -> list[str]:
     return [p["id"] for p in config.PARTICIPANTS if is_available(p["id"])]
 
 
-async def call_ai(ai_id: str, system: str, user_prompt: str) -> str:
+async def call_ai(
+    ai_id: str, system: str, user_prompt: str, max_tokens: int = 0
+) -> str:
     """지정한 AI에게 system + user 프롬프트를 보내고 텍스트 응답을 반환."""
     p = config.participant(ai_id)
     if not p:
         raise AIError(f"알 수 없는 AI: {ai_id}")
     if config.MOCK:
         return await _mock_reply(ai_id, system, user_prompt)
+    mt = max_tokens or config.MAX_TOKENS
     prov = p["provider"]
     try:
         coro = {
             "anthropic": _call_claude,
             "openai": _call_openai,
             "google": _call_gemini,
-        }[prov](system, user_prompt)
+        }[prov](system, user_prompt, mt)
         return await asyncio.wait_for(coro, timeout=config.AI_TIMEOUT)
     except AIError:
         raise
@@ -118,7 +121,7 @@ async def _mock_reply(ai_id: str, system: str, user_prompt: str) -> str:
     )
 
 
-async def _call_claude(system: str, user_prompt: str) -> str:
+async def _call_claude(system: str, user_prompt: str, max_tokens: int) -> str:
     if not config.ANTHROPIC_API_KEY:
         raise AIError("ANTHROPIC_API_KEY 가 설정되지 않았습니다.")
     from anthropic import AsyncAnthropic
@@ -126,7 +129,7 @@ async def _call_claude(system: str, user_prompt: str) -> str:
     client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
     kwargs: dict = dict(
         model=config.ANTHROPIC_MODEL,
-        max_tokens=config.MAX_TOKENS,
+        max_tokens=max_tokens,
         system=system,
         messages=[{"role": "user", "content": user_prompt}],
     )
@@ -145,7 +148,7 @@ async def _call_claude(system: str, user_prompt: str) -> str:
     return text
 
 
-async def _call_openai(system: str, user_prompt: str) -> str:
+async def _call_openai(system: str, user_prompt: str, max_tokens: int) -> str:
     if not config.OPENAI_API_KEY:
         raise AIError("OPENAI_API_KEY 가 설정되지 않았습니다.")
     from openai import AsyncOpenAI
@@ -159,14 +162,14 @@ async def _call_openai(system: str, user_prompt: str) -> str:
         resp = await client.chat.completions.create(
             model=config.OPENAI_MODEL,
             messages=messages,
-            max_tokens=config.MAX_TOKENS,
+            max_tokens=max_tokens,
         )
     except Exception:
         # 일부 최신 모델은 max_tokens 대신 max_completion_tokens 를 요구합니다.
         resp = await client.chat.completions.create(
             model=config.OPENAI_MODEL,
             messages=messages,
-            max_completion_tokens=config.MAX_TOKENS,
+            max_completion_tokens=max_tokens,
         )
     text = (resp.choices[0].message.content or "").strip()
     if not text:
@@ -174,7 +177,7 @@ async def _call_openai(system: str, user_prompt: str) -> str:
     return text
 
 
-async def _call_gemini(system: str, user_prompt: str) -> str:
+async def _call_gemini(system: str, user_prompt: str, max_tokens: int) -> str:
     if not config.GEMINI_API_KEY:
         raise AIError("GEMINI_API_KEY 가 설정되지 않았습니다.")
     from google import genai
@@ -186,7 +189,7 @@ async def _call_gemini(system: str, user_prompt: str) -> str:
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=system,
-            max_output_tokens=config.MAX_TOKENS,
+            max_output_tokens=max_tokens,
         ),
     )
     text = (getattr(resp, "text", None) or "").strip()

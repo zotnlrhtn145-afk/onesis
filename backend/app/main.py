@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_clients, auth, builder, config, db, debate, schemas
+from . import ai_clients, auth, builder, config, db, debate, prompts, schemas
 
 app = FastAPI(title="Onesis", docs_url=None, redoc_url=None)
 
@@ -171,6 +171,70 @@ async def api_refine(req: schemas.RefineReq) -> StreamingResponse:
             yield _sse({"type": "done"})
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+# ---------------- 화면 미리보기 (실제 UI 목업) ----------------
+def _clean_html(text: str) -> str:
+    """AI 응답에서 순수 HTML만 추출(코드펜스/설명 제거)."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else ""
+        if t.rstrip().endswith("```"):
+            t = t.rstrip()[:-3]
+    low = t.lower()
+    for marker in ("<!doctype", "<html"):
+        i = low.find(marker)
+        if i != -1:
+            return t[i:].strip()
+    i = t.find("<")
+    return t[i:].strip() if i != -1 else t
+
+
+_MOCK_MOCKUP = """<!doctype html><html lang=ko><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>body{margin:0;font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;background:#f4f5f7;color:#1a1a2e}
+.top{background:linear-gradient(135deg,#4f8cff,#8b5cf6);color:#fff;padding:20px 18px;border-radius:0 0 20px 20px}
+.top h1{margin:0;font-size:20px}.top p{margin:4px 0 0;opacity:.9;font-size:13px}
+.card{background:#fff;margin:14px;padding:16px;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.card h3{margin:0 0 6px;font-size:15px}.card p{margin:0;color:#667;font-size:13px}
+.btn{display:block;margin:16px;padding:14px;background:#4f8cff;color:#fff;text-align:center;border-radius:12px;font-weight:700}
+.nav{position:sticky;bottom:0;display:flex;background:#fff;border-top:1px solid #eee}
+.nav div{flex:1;text-align:center;padding:10px;font-size:12px;color:#889}.nav .on{color:#4f8cff}</style>
+<div class=top><h1>✨ 데모 화면</h1><p>실제 AI가 만든 화면이 여기에 나옵니다</p></div>
+<div class=card><h3>📌 예시 항목 1</h3><p>실제 제작 시 이 자리에 진짜 콘텐츠가 들어갑니다.</p></div>
+<div class=card><h3>🎯 예시 항목 2</h3><p>버튼·색·글자를 말로 고치면 바로 반영돼요.</p></div>
+<div class=btn>시작하기</div>
+<div class=nav><div class=on>🏠 홈</div><div>🔍 검색</div><div>👤 내정보</div></div></html>"""
+
+
+@app.post("/api/mockup", dependencies=[Depends(auth.require_auth)])
+async def api_mockup(req: schemas.MockupReq) -> dict[str, str]:
+    ais = ai_clients.available_ids()
+    if config.MOCK:
+        html = _MOCK_MOCKUP
+    else:
+        if not ais:
+            raise HTTPException(status_code=400, detail="사용 가능한 AI가 없습니다.")
+        designer = config.ROLE_LEADS.get("design")
+        if designer not in ais:
+            designer = ais[0]
+        if req.instruction and req.current_html:
+            user = prompts.mockup_refine_user(req.current_html, req.instruction)
+        else:
+            user = prompts.mockup_user(req.brief or "")
+        try:
+            raw = await ai_clients.call_ai(
+                designer, prompts.mockup_system(), user, max_tokens=4000
+            )
+        except ai_clients.AIError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+        html = _clean_html(raw)
+    if req.conversation_id:
+        try:
+            db.update_mockup(req.conversation_id, html)
+        except Exception:
+            pass
+    return {"html": html}
 
 
 # ---------------- 이대로 제작하기 (클로드 코드 연동) ----------------
