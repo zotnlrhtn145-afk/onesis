@@ -657,14 +657,6 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mobile-tabs">
-            <button className={mobileTab === 'chat' ? 'on' : ''} onClick={() => setMobileTab('chat')}>
-              대화
-            </button>
-            <button className={mobileTab === 'preview' ? 'on' : ''} onClick={() => setMobileTab('preview')}>
-              미리보기{preview ? ' •' : ''}
-            </button>
-          </div>
         </div>
 
         <div className="splitter" onMouseDown={startDrag} />
@@ -686,6 +678,15 @@ export default function App() {
             mockupLoading={mockupLoading}
             onMakeMockup={onMakeMockup}
           />
+        </div>
+
+        <div className="mobile-tabs">
+          <button className={mobileTab === 'chat' ? 'on' : ''} onClick={() => setMobileTab('chat')}>
+            대화
+          </button>
+          <button className={mobileTab === 'preview' ? 'on' : ''} onClick={() => setMobileTab('preview')}>
+            미리보기{preview ? ' •' : ''}
+          </button>
         </div>
       </div>
 

@@ -207,7 +207,9 @@ a { color: var(--accent); }
 /* ===================== 미리보기 패널 ===================== */
 .preview-head {
   display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
+.preview-head .pv-btn, .pv-tabs button, .device-toggle button { white-space: nowrap; }
 .preview-head .label { font-weight: 700; font-size: 14px; flex: 1; display: flex; align-items: center; gap: 8px; }
 .preview-head .pv-btn {
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -387,17 +389,21 @@ a { color: var(--accent); }
   .sidebar.open { transform: translateX(0); }
   .backdrop.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 35; }
 
-  /* 좌우 분할 → 탭 전환 */
+  /* 좌우 분할 → 탭 전환 (하단 탭 바는 항상 보임) */
   .splitter { display: none; }
-  .preview-pane { position: absolute; inset: 0; z-index: 20; width: auto !important; }
   .main-area { position: relative; }
-  .chat-pane, .preview-pane { display: none; }
+  .chat-pane, .preview-pane {
+    position: absolute; top: 0; left: 0; right: 0;
+    bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+    z-index: 20; width: auto !important; display: none;
+  }
   .main-area[data-mobile='chat'] .chat-pane { display: flex; }
   .main-area[data-mobile='preview'] .preview-pane { display: flex; }
-  .main-area[data-mobile='chat'] .preview-pane { display: none; }
 
   .mobile-tabs {
-    display: flex; border-top: 1px solid var(--border); background: var(--bg);
+    display: flex; position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+    border-top: 1px solid var(--border); background: var(--bg);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .mobile-tabs button {
     flex: 1; padding: 12px; border: none; background: none; color: var(--muted); font-weight: 700; font-size: 13.5px;
