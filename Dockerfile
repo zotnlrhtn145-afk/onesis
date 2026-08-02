@@ -2,11 +2,9 @@
 FROM node:22-alpine AS frontend
 WORKDIR /app/frontend
 RUN corepack enable
-# 의존성 먼저 복사해 캐시 활용
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./
-RUN pnpm install --no-frozen-lockfile
-# 나머지 소스 복사 후 빌드 → dist/ 생성
+# 프론트 소스 전체 복사 후 설치·빌드 (개별 파일 누락 위험 제거)
 COPY frontend/ ./
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm build
 
 # ===== 2단계: 백엔드(FastAPI) + 정적 파일 서빙 =====
