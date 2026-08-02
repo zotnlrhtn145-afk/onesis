@@ -4,7 +4,7 @@ WORKDIR /app/frontend
 RUN corepack enable
 # 의존성 먼저 복사해 캐시 활용
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 # 나머지 소스 복사 후 빌드 → dist/ 생성
 COPY frontend/ ./
 RUN pnpm build
