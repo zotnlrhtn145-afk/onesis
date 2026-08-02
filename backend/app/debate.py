@@ -55,28 +55,54 @@ def _fallback_doc(question: str, answers: dict[str, str], is_build: bool) -> str
     return "\n\n".join(parts)
 
 
+def _participants(ais: list[str]) -> list[dict[str, Any]]:
+    return [
+        {"id": p["id"], "name": p["name"], "color": p["color"]}
+        for p in config.PARTICIPANTS
+        if p["id"] in ais
+    ]
+
+
+def resolve_lead(part: str, ais: list[str]):
+    """파트의 주도 AI. 지정이 없거나 사용 불가면 None(=다같이 대칭 토론)."""
+    lead = config.ROLE_LEADS.get(part)
+    return lead if (lead and lead in ais) else None
+
+
 async def run_debate(question: str) -> AsyncIterator[dict[str, Any]]:
     is_build = prompts.detect_build(question)
+    part = prompts.detect_part(question)
     ais = ai_clients.available_ids()
+    if not ais:
+        yield {"type": "error", "error": "사용 가능한 AI가 없습니다. API 키를 설정하세요."}
+        return
+    lead = resolve_lead(part, ais)
+    if lead is None:
+        async for e in _run_symmetric(question, ais, is_build, part):
+            yield e
+    else:
+        async for e in _run_lead(question, ais, lead, is_build, part):
+            yield e
 
+
+async def _run_symmetric(
+    question: str, ais: list[str], is_build: bool, part: str
+) -> AsyncIterator[dict[str, Any]]:
+    """기획안/일반 질문: 주도자 없이 셋이 다같이 토론(대칭)."""
     transcript: dict[str, Any] = {
-        "participants": [
-            {"id": p["id"], "name": p["name"], "color": p["color"]}
-            for p in config.PARTICIPANTS
-            if p["id"] in ais
-        ],
+        "participants": _participants(ais),
         "is_build": is_build,
+        "part": part,
+        "lead": None,
+        "mode": "symmetric",
         "initial": {},
         "critique1": {},
         "revise1": {},
         "critique2": {},
     }
 
-    if not ais:
-        yield {"type": "error", "error": "사용 가능한 AI가 없습니다. API 키를 설정하세요."}
-        return
-
-    yield {"type": "meta", "is_build": is_build,
+    yield {"type": "meta", "is_build": is_build, "part": part, "lead": None,
+           "part_label": config.PART_LABELS.get(part, part),
            "participants": transcript["participants"]}
 
     # ---------- 1) 1차 답변 (병렬) ----------
@@ -199,6 +225,121 @@ async def run_debate(question: str) -> AsyncIterator[dict[str, Any]]:
     yield {"type": "ai_done", "ai": moderator, "stage": "final", "content": final_doc}
     yield {"type": "preview", "content": final_doc}
     yield {"type": "final", "content": final_doc, "transcript": transcript, "is_build": is_build}
+
+
+def _append_build_note(doc: str, part: str) -> str:
+    if part == "build" and "이대로 제작하기" not in doc:
+        return (
+            doc
+            + "\n\n---\n> 💡 실제 코드 제작은 오른쪽 **[이대로 제작하기]** 버튼을 누르면 "
+            "클로드 코드가 이 내용대로 만들어 줍니다."
+        )
+    return doc
+
+
+async def _run_lead(
+    question: str, ais: list[str], lead: str, is_build: bool, part: str
+) -> AsyncIterator[dict[str, Any]]:
+    """주도(lead) 방식: 담당 AI가 이끌고, 나머지가 의견을 2번 주고받아 최적안으로 수렴."""
+    lead_name = config.name_of(lead)
+    part_label = config.PART_LABELS.get(part, part)
+    others = [a for a in ais if a != lead]
+    transcript: dict[str, Any] = {
+        "participants": _participants(ais),
+        "is_build": is_build, "part": part, "lead": lead, "mode": "lead",
+        "initial": {}, "critique1": {}, "revise1": {}, "critique2": {},
+    }
+    yield {"type": "meta", "is_build": is_build, "part": part, "lead": lead,
+           "part_label": part_label, "participants": transcript["participants"]}
+
+    # 1) 주도자 제안
+    yield {"type": "status", "step": "initial",
+           "label": f"1단계 · {part_label} — {lead_name}가 제안 작성 중…"}
+    yield {"type": "ai_start", "ai": lead, "stage": "initial"}
+    try:
+        current = await ai_clients.call_ai(
+            lead, prompts.lead_propose_system(lead_name, part),
+            prompts.lead_propose_user(question, part))
+        transcript["initial"][lead] = current
+        yield {"type": "ai_done", "ai": lead, "stage": "initial", "content": current}
+    except ai_clients.AIError as e:
+        transcript["initial"][lead] = {"error": str(e)}
+        yield {"type": "ai_error", "ai": lead, "stage": "initial", "error": str(e)}
+        # 주도자가 제안에 실패하면 남은 AI로 다같이(대칭) 전환
+        if others:
+            async for ev in _run_symmetric(question, others, is_build, part):
+                yield ev
+        else:
+            yield {"type": "error", "error": "주도 AI가 응답하지 못했습니다."}
+        return
+    yield {"type": "preview",
+           "content": _interim_preview({lead: current}, f"{lead_name}의 제안 완료 — 의견 수렴 중")}
+
+    async def finalize(feedback: dict[str, str]):
+        yield {"type": "status", "step": "final",
+               "label": f"5단계 · {lead_name}가 최적안으로 정리 중…"}
+        yield {"type": "ai_start", "ai": lead, "stage": "final"}
+        try:
+            doc = await ai_clients.call_ai(
+                lead, prompts.lead_final_system(lead_name),
+                prompts.lead_final_user(question, current, feedback, is_build))
+        except ai_clients.AIError:
+            doc = current
+        doc = _append_build_note(doc, part)
+        transcript["final_by"] = lead
+        yield {"type": "ai_done", "ai": lead, "stage": "final", "content": doc}
+        yield {"type": "preview", "content": doc}
+        yield {"type": "final", "content": doc, "transcript": transcript, "is_build": is_build}
+
+    # 주도자만 있으면 바로 최종
+    if not others:
+        async for ev in finalize({}):
+            yield ev
+        return
+
+    # 2번 주고받기: 1차 의견 → 수정 → 2차 의견 → 최종
+    rounds = [("critique1", "revise1", 2, 1), ("critique2", None, 4, 2)]
+    for crit_key, rev_key, crit_step_no, round_no in rounds:
+        yield {"type": "status", "step": crit_key,
+               "label": f"{crit_step_no}단계 · 나머지 AI가 {round_no}차 의견 제시 중…"}
+        for a in others:
+            yield {"type": "ai_start", "ai": a, "stage": crit_key}
+        feedback: dict[str, str] = {}
+        tasks = {
+            a: ai_clients.call_ai(
+                a, prompts.lead_feedback_system(config.name_of(a)),
+                prompts.lead_feedback_user(question, lead_name, current))
+            for a in others
+        }
+        async for ai_id, ok, val in _gather_stream(tasks):
+            if ok:
+                feedback[ai_id] = val
+                transcript[crit_key][ai_id] = val
+                yield {"type": "ai_done", "ai": ai_id, "stage": crit_key, "content": val}
+            else:
+                transcript[crit_key][ai_id] = {"error": val}
+                yield {"type": "ai_error", "ai": ai_id, "stage": crit_key, "error": val}
+
+        if rev_key == "revise1":
+            # 주도자가 1차 의견 반영해 수정
+            yield {"type": "status", "step": "revise1",
+                   "label": f"3단계 · {lead_name}가 의견 반영해 수정 중…"}
+            yield {"type": "ai_start", "ai": lead, "stage": "revise1"}
+            try:
+                current = await ai_clients.call_ai(
+                    lead, prompts.lead_revise_system(lead_name),
+                    prompts.lead_revise_user(question, current, feedback))
+                transcript["revise1"][lead] = current
+                yield {"type": "ai_done", "ai": lead, "stage": "revise1", "content": current}
+            except ai_clients.AIError as e:
+                transcript["revise1"][lead] = {"error": str(e)}
+                yield {"type": "ai_error", "ai": lead, "stage": "revise1", "error": str(e)}
+            yield {"type": "preview",
+                   "content": _interim_preview({lead: current}, "수정안 완료 — 최종 수렴 중")}
+        else:
+            # 2차 의견 반영해 최종 완성
+            async for ev in finalize(feedback):
+                yield ev
 
 
 async def run_refine(current_doc: str, instruction: str) -> AsyncIterator[dict[str, Any]]:

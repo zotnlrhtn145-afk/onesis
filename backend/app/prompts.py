@@ -16,6 +16,115 @@ def detect_build(question: str) -> bool:
     return any(k in q for k in _BUILD_KEYWORDS)
 
 
+# 파트(주제) 분류용 키워드 — 위에서부터 먼저 맞는 것을 선택
+_PART_KEYWORDS = [
+    ("build", [
+        "코딩", "코드", "프로그래밍", "구현", "개발해", "함수", "버그", "리팩터", "리팩토링",
+        "디버그", "데이터베이스", "스크립트", "코드 짜", "코드로", "직접 만들어", "깃허브",
+        "배포", "api 만들", "백엔드 코드", "프론트 코드",
+    ]),
+    ("design", [
+        "디자인", "ui", "ux", "화면 구성", "레이아웃", "색상", "컬러", "색깔", "폰트", "글꼴",
+        "로고", "아이콘", "그래픽", "스타일", "테마", "배치", "시각", "비주얼", "목업",
+        "와이어프레임", "화면 디자인",
+    ]),
+    ("idea", [
+        "아이디어", "브레인스토밍", "컨셉", "무엇을 만들", "뭘 만들", "어떤 걸 만들",
+        "주제 추천", "기능 추천", "뭐가 좋을", "아이템", "영감", "방향 잡", "떠올",
+    ]),
+    ("plan", ["기획", "기획안", "설계", "정리", "문서", "계획", "스펙", "요구사항", "로드맵"]),
+]
+
+
+def detect_part(question: str) -> str:
+    """질문을 idea/design/plan/build 중 하나로 분류. 기본값은 plan(다같이)."""
+    q = (question or "").lower()
+    for part, kws in _PART_KEYWORDS:
+        if any(k in q for k in kws):
+            return part
+    return "plan"
+
+
+# ---------- 주도(lead) 방식 프롬프트 ----------
+_PART_GUIDE = {
+    "idea": "아이디어와 컨셉을 발굴하고 다양한 가능성을 제시",
+    "design": "화면 구성·UI·색과 폰트 등 디자인을 구체적으로 제시",
+    "plan": "전체 기획을 정리",
+    "build": "무엇을 어떻게 만들지 개발 관점에서 구체화",
+}
+
+
+def _final_format(is_build: bool) -> str:
+    if is_build:
+        return (
+            "결과물을 클로드 코드(개발 AI)에 그대로 넘길 수 있는 '개발 지시문'으로 작성하세요. "
+            "실제 코드는 넣지 말고, 아래 구조를 사용하세요:\n\n"
+            "## 프로젝트 개요\n## 기능 목록\n## 화면 구성과 디자인\n## 기술 구성\n## 완료 기준"
+        )
+    return "제목과 목록을 활용해 명확하고 읽기 좋은 마크다운으로 정리하세요."
+
+
+def lead_propose_system(name: str, part: str) -> str:
+    return (
+        f"당신은 '{name}'입니다. 이번 주제('{config.PART_LABELS.get(part, part)}')의 주도자로서 "
+        f"{_PART_GUIDE.get(part, '최선의 방향을 제시')}합니다. "
+        "명확하고 근거 있는 제안을 한국어 마크다운으로 작성하세요."
+    )
+
+
+def lead_propose_user(question: str, part: str) -> str:
+    return f"[요청]\n{question}\n\n당신이 주도해 최선의 방향을 제안하세요."
+
+
+def lead_feedback_system(name: str) -> str:
+    return (
+        f"당신은 '{name}'입니다. 주도자의 제안을 검토해 '동의하는 점 / 반대(근거) / 더 나은 대안'을 "
+        "간결하게 제시합니다. 목표는 더 좋은 최적안을 함께 찾는 것입니다. 한국어로 작성하세요."
+    )
+
+
+def lead_feedback_user(question: str, lead_name: str, current: str) -> str:
+    return (
+        f"[요청]\n{question}\n\n"
+        f"[{lead_name}(주도)의 현재 제안]\n{current}\n\n"
+        "이 제안을 더 좋게 만들 의견을 주세요."
+    )
+
+
+def lead_revise_system(name: str) -> str:
+    return (
+        f"당신은 '{name}'입니다(주도자). 받은 의견 중 타당한 것을 반영해 제안을 더 낫게 개선합니다. "
+        "개선된 제안만 한국어 마크다운으로 출력하세요."
+    )
+
+
+def lead_revise_user(question: str, current: str, feedback: dict[str, str]) -> str:
+    fb = "\n\n".join(f"### {config.name_of(a)}\n{t}" for a, t in feedback.items()) or "(의견 없음)"
+    return (
+        f"[요청]\n{question}\n\n"
+        f"[당신의 현재 제안]\n{current}\n\n"
+        f"[받은 의견]\n{fb}\n\n"
+        "의견을 반영해 제안을 개선해 다시 작성하세요."
+    )
+
+
+def lead_final_system(name: str) -> str:
+    return (
+        f"당신은 '{name}'입니다(주도자). 지금까지의 논의를 종합해 최적의 결과물을 완성합니다. "
+        "결과물만 한국어 마크다운으로 출력하세요."
+    )
+
+
+def lead_final_user(question: str, current: str, feedback: dict[str, str], is_build: bool) -> str:
+    fb = "\n\n".join(f"### {config.name_of(a)}\n{t}" for a, t in feedback.items()) or "(의견 없음)"
+    return (
+        f"[요청]\n{question}\n\n"
+        f"[현재까지 다듬어진 제안]\n{current}\n\n"
+        f"[마지막 의견]\n{fb}\n\n"
+        f"[작성 지침]\n{_final_format(is_build)}"
+    )
+
+
 def initial_system(name: str) -> str:
     return (
         f"당신은 '{name}'입니다. 여러 AI가 함께 토론해 최선의 답을 만드는 자리에 참여합니다. "

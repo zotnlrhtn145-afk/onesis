@@ -63,6 +63,20 @@ PARTICIPANTS = [
 # 사회자(최종 정리 담당)
 MODERATOR_ID = "claude"
 
+# ---------- 파트별 주도(lead) AI (★ 여기서 쉽게 바꿀 수 있음) ----------
+# 각 주제는 담당 AI가 '주도'하고, 나머지가 의견을 2번 주고받아 최적안으로 수렴합니다.
+#   idea(아이디어)  → 챗지피티 주도
+#   design(디자인)  → 제미나이 주도
+#   plan(기획안)    → 다같이(주도자 없음, 대칭 토론)
+#   build(코딩/제작) → 클로드 주도 (실제 코드 제작은 '이대로 제작하기'=클로드 코드가 담당)
+ROLE_LEADS = {
+    "idea": "gpt",
+    "design": "gemini",
+    "plan": None,
+    "build": "claude",
+}
+PART_LABELS = {"idea": "아이디어", "design": "디자인", "plan": "기획", "build": "제작·코딩"}
+
 
 def participant(ai_id: str) -> dict | None:
     for p in PARTICIPANTS:

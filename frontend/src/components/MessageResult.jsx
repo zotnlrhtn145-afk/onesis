@@ -1,11 +1,13 @@
 import Markdown from './Markdown'
 
 const STAGE_LABELS = {
-  initial: '1차 답변',
-  critique1: '토론 1바퀴 · 서로에 대한 지적',
-  revise1: '수정된 답변',
-  critique2: '토론 2바퀴 · 재검토',
+  initial: '1차 제안',
+  critique1: '1차 의견 주고받기',
+  revise1: '1차 수정안',
+  critique2: '2차 의견 주고받기',
 }
+
+const PART_LABELS = { idea: '아이디어', design: '디자인', plan: '기획', build: '제작·코딩' }
 
 export default function MessageResult({ message }) {
   const { final, transcript = {} } = message
@@ -17,8 +19,17 @@ export default function MessageResult({ message }) {
     (s) => transcript[s] && Object.keys(transcript[s]).length > 0
   )
 
+  const partLabel = PART_LABELS[transcript.part] || null
+  const lead = transcript.lead
+  const badge = partLabel
+    ? lead
+      ? `${partLabel} · ${nameOf(lead)} 주도`
+      : `${partLabel} · 다같이`
+    : null
+
   return (
     <div className="result">
+      {badge && <div className="part-badge">{badge}</div>}
       <div className="final-card">
         <Markdown>{final}</Markdown>
       </div>
