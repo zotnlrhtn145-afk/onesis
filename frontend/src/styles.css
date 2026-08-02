@@ -391,14 +391,20 @@ a { color: var(--accent); }
 
   /* 좌우 분할 → 탭 전환 (하단 탭 바는 항상 보임) */
   .splitter { display: none; }
-  .main-area { position: relative; }
+  .main-area { position: relative; overflow: hidden; }
+  /* 두 화면을 나란히 두고 transform으로 부드럽게 슬라이드 전환 */
   .chat-pane, .preview-pane {
     position: absolute; top: 0; left: 0; right: 0;
     bottom: calc(48px + env(safe-area-inset-bottom, 0px));
-    z-index: 20; width: auto !important; display: none;
+    z-index: 20; width: auto !important; display: flex;
+    transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
   }
-  .main-area[data-mobile='chat'] .chat-pane { display: flex; }
-  .main-area[data-mobile='preview'] .preview-pane { display: flex; }
+  .chat-pane { transform: translateX(0); }
+  .preview-pane { transform: translateX(100%); }
+  .main-area[data-mobile='preview'] .chat-pane { transform: translateX(-100%); pointer-events: none; }
+  .main-area[data-mobile='preview'] .preview-pane { transform: translateX(0); }
+  .main-area[data-mobile='chat'] .preview-pane { pointer-events: none; }
 
   .mobile-tabs {
     display: flex; position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
