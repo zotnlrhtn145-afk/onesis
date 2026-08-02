@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 backend/.venv/
 backend/data/
-backend/static/
 
 # ===== 노드 =====
 frontend/node_modules/
