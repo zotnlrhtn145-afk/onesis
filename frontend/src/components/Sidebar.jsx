@@ -8,6 +8,8 @@ export default function Sidebar({
   onToggleTheme,
   onLogout,
   open,
+  view,
+  onOpenStats,
 }) {
   return (
     <aside className={`sidebar ${open ? 'open' : ''}`}>
@@ -17,6 +19,12 @@ export default function Sidebar({
       </div>
       <button className="new-chat-btn" onClick={onNew}>
         <span style={{ fontSize: 18, lineHeight: 1 }}>＋</span> 새 대화
+      </button>
+      <button
+        className={`nav-btn ${view === 'stats' ? 'active' : ''}`}
+        onClick={onOpenStats}
+      >
+        📊 시장 통계
       </button>
       <div className="conv-list">
         {conversations.length === 0 && (

@@ -7,6 +7,7 @@ import ThinkingLoader from './components/ThinkingLoader'
 import MessageResult from './components/MessageResult'
 import PreviewPanel from './components/PreviewPanel'
 import BuildModal from './components/BuildModal'
+import StatsView from './components/StatsView'
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken())
@@ -36,6 +37,7 @@ export default function App() {
   const abortRef = useRef(null)
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [view, setView] = useState('chat') // 'chat' | 'stats'
   const [mobileTab, setMobileTab] = useState('chat')
   const [previewWidth, setPreviewWidth] = useState(440)
   const [previewOpen, setPreviewOpen] = useState(false) // 데스크톱 미리보기 패널 열림
@@ -183,6 +185,7 @@ export default function App() {
   async function selectConversation(id) {
     if (sending) return
     setSidebarOpen(false)
+    setView('chat')
     setActiveId(id)
     setRun(null)
     setRunError('')
@@ -235,6 +238,7 @@ export default function App() {
     setMobileTab('chat')
     setPreviewOpen(false)
     userClosedPreviewRef.current = false
+    setView('chat')
   }
 
   async function deleteConversation(id) {
@@ -786,10 +790,21 @@ export default function App() {
         onToggleTheme={toggleTheme}
         onLogout={doLogout}
         open={sidebarOpen}
+        view={view}
+        onOpenStats={() => {
+          setView('stats')
+          setSidebarOpen(false)
+        }}
       />
       <div className={`backdrop ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
-      <div className="main-area" data-mobile={mobileTab}>
+      {view === 'stats' && <StatsView onMenu={() => setSidebarOpen(true)} />}
+
+      <div
+        className="main-area"
+        data-mobile={mobileTab}
+        style={view === 'stats' ? { display: 'none' } : undefined}
+      >
         <div className="chat-pane">
           <div className="topbar">
             <button className="hamburger" onClick={() => setSidebarOpen(true)}>

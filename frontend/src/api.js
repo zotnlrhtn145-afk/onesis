@@ -79,6 +79,24 @@ export const api = {
 
   runningIds: () =>
     fetch('/api/running', { headers: authHeaders() }).then(handle),
+
+  // 시장 통계
+  marketStats: (query) =>
+    fetch('/api/market/stats', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ query }),
+    }).then(handle),
+
+  marketExplain: (symbol) =>
+    fetch('/api/market/explain', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ symbol }),
+    }).then(handle),
+
+  marketAssets: () =>
+    fetch('/api/market/assets', { headers: authHeaders() }).then(handle),
 }
 
 // SSE 블록(빈 줄로 구분)을 파싱해 onEvent 로 넘긴다.
