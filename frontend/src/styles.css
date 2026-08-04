@@ -564,3 +564,57 @@ a { color: var(--accent); }
 
 .stats-explain { padding: 4px 2px; }
 .stats-disc { margin-top: 24px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 12px; line-height: 1.6; }
+
+/* ===================== 세그먼트 사이드 네비 (홈/기획안/통계) ===================== */
+.side-nav { padding: 2px 8px 6px; display: flex; flex-direction: column; gap: 2px; }
+.side-nav-item {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 12px; border: none; background: none; color: var(--text);
+  border-radius: 12px; font-size: 14.5px; font-weight: 500; cursor: pointer; text-align: left;
+}
+.side-nav-item:hover { background: var(--surface-2); }
+.side-nav-item.active { background: var(--surface-2); font-weight: 700; }
+.side-nav-item.active svg { color: var(--accent); }
+.side-nav-item svg { color: var(--muted); flex-shrink: 0; }
+.side-nav-item.active svg { color: var(--accent); }
+
+.conv-empty { padding: 10px 14px; color: var(--muted); font-size: 13px; }
+
+/* 아이콘 정렬 공통 */
+button svg { flex-shrink: 0; }
+.hamburger { display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+.stats-title { display: inline-flex; align-items: center; gap: 8px; }
+.stats-title svg { color: var(--accent); }
+.artifact-ic { color: var(--accent); display: flex; flex-shrink: 0; }
+.device-toggle button { display: inline-flex; align-items: center; justify-content: center; }
+.pv-btn { display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
+.new-chat-btn svg { color: var(--muted); }
+
+/* ===================== 기획안 갤러리 화면 ===================== */
+.plans-view { flex: 1; min-width: 0; overflow-y: auto; }
+.plans-inner { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+.plans-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.plans-title { font-size: 26px; font-weight: 800; margin: 0; }
+.plans-sub { color: var(--muted); font-size: 14px; margin: 6px 0 20px; }
+.plans-new {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); border-radius: 10px; padding: 8px 14px;
+  font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.plans-new:hover { border-color: var(--accent); color: var(--accent); }
+.plans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.plan-card {
+  display: flex; flex-direction: column; gap: 12px; align-items: flex-start; text-align: left;
+  padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+  cursor: pointer; min-height: 100px; transition: border-color 0.15s, transform 0.05s;
+}
+.plan-card:hover { border-color: var(--accent); }
+.plan-card:active { transform: scale(0.99); }
+.plan-ic { color: var(--accent); display: flex; }
+.plan-title-t {
+  font-size: 14.5px; font-weight: 600; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.plans-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--muted); padding: 56px 20px; text-align: center; }
+.plans-empty svg { color: var(--border); }
+.plans-empty p { margin: 0; font-size: 14px; }

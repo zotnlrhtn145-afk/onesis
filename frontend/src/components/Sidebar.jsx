@@ -1,3 +1,11 @@
+import Icon from './Icon'
+
+const NAV = [
+  { key: 'home', label: '홈', icon: 'home' },
+  { key: 'plans', label: '기획안', icon: 'plan' },
+  { key: 'stats', label: '통계', icon: 'chart' },
+]
+
 export default function Sidebar({
   conversations,
   activeId,
@@ -9,7 +17,7 @@ export default function Sidebar({
   onLogout,
   open,
   view,
-  onOpenStats,
+  onNavigate,
 }) {
   return (
     <aside className={`sidebar ${open ? 'open' : ''}`}>
@@ -17,25 +25,31 @@ export default function Sidebar({
         <div className="logo-badge">O</div>
         <span className="logo-text">오네시스</span>
       </div>
+
+      <nav className="side-nav">
+        {NAV.map((n) => (
+          <button
+            key={n.key}
+            className={`side-nav-item ${view === n.key ? 'active' : ''}`}
+            onClick={() => onNavigate(n.key)}
+          >
+            <Icon name={n.icon} size={19} />
+            <span>{n.label}</span>
+          </button>
+        ))}
+      </nav>
+
       <button className="new-chat-btn" onClick={onNew}>
-        <span style={{ fontSize: 18, lineHeight: 1 }}>＋</span> 새 대화
+        <Icon name="plus" size={17} />
+        새 대화
       </button>
-      <button
-        className={`nav-btn ${view === 'stats' ? 'active' : ''}`}
-        onClick={onOpenStats}
-      >
-        📊 시장 통계
-      </button>
+
       <div className="conv-list">
-        {conversations.length === 0 && (
-          <div style={{ padding: '12px', color: 'var(--muted)', fontSize: 13 }}>
-            아직 대화가 없어요.
-          </div>
-        )}
+        {conversations.length === 0 && <div className="conv-empty">아직 기획안이 없어요.</div>}
         {conversations.map((c) => (
           <div
             key={c.id}
-            className={`conv-item ${c.id === activeId ? 'active' : ''}`}
+            className={`conv-item ${c.id === activeId && view !== 'stats' ? 'active' : ''}`}
             onClick={() => onSelect(c.id)}
           >
             <span className="title">{c.title}</span>
@@ -47,17 +61,19 @@ export default function Sidebar({
                 onDelete(c.id)
               }}
             >
-              ✕
+              <Icon name="close" size={14} strokeWidth={2} />
             </button>
           </div>
         ))}
       </div>
+
       <div className="sidebar-foot">
         <button className="icon-btn" onClick={onToggleTheme}>
-          {theme === 'dark' ? '☀️ 밝게' : '🌙 어둡게'}
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
+          {theme === 'dark' ? '밝게' : '어둡게'}
         </button>
-        <button className="icon-btn" onClick={onLogout} style={{ marginLeft: 'auto' }}>
-          로그아웃
+        <button className="icon-btn" onClick={onLogout} title="로그아웃" style={{ marginLeft: 'auto' }}>
+          <Icon name="logout" size={16} />
         </button>
       </div>
     </aside>

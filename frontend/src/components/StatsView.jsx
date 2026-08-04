@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api'
 import Markdown from './Markdown'
+import Icon from './Icon'
 
 const PICKS = ['삼성전자', '애플', '엔비디아', '테슬라', '비트코인', '이더리움', '금', 'S&P500']
 
@@ -64,15 +65,18 @@ export default function StatsView({ onMenu }) {
     <div className="stats-view">
       <div className="topbar">
         <button className="hamburger" onClick={onMenu}>
-          ☰
+          <Icon name="menu" size={22} />
         </button>
         <div className="logo-badge" style={{ width: 26, height: 26, fontSize: 14 }}>
           O
         </div>
-        <span style={{ fontWeight: 800 }}>시장 통계</span>
+        <span style={{ fontWeight: 700 }}>시장 통계</span>
       </div>
       <div className="stats-inner">
-        <h1 className="stats-title">📊 시장 통계</h1>
+        <h1 className="stats-title">
+          <Icon name="chart" size={24} strokeWidth={1.8} />
+          시장 통계
+        </h1>
         <p className="stats-sub">
           자산 이름이나 티커를 입력하면, 실제 과거 데이터로 <b>저점·고점·낙폭·백분위</b> 등을 계산해 드려요.
         </p>

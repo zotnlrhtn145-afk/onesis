@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Markdown from './Markdown'
+import Icon from './Icon'
 
 export default function PreviewPanel({
   content,
@@ -66,11 +67,11 @@ export default function PreviewPanel({
         ) : (
           <>
             <div className="device-toggle" title="화면 크기">
-              <button className={device === 'mobile' ? 'on' : ''} onClick={() => setDevice('mobile')}>
-                📱
+              <button className={device === 'mobile' ? 'on' : ''} onClick={() => setDevice('mobile')} title="모바일">
+                <Icon name="mobile" size={16} />
               </button>
-              <button className={device === 'desktop' ? 'on' : ''} onClick={() => setDevice('desktop')}>
-                💻
+              <button className={device === 'desktop' ? 'on' : ''} onClick={() => setDevice('desktop')} title="데스크톱">
+                <Icon name="desktop" size={16} />
               </button>
             </div>
             {mockup && (
@@ -128,7 +129,8 @@ export default function PreviewPanel({
               <>
                 <p>기획안을 바탕으로 실제 사용자 화면을 미리 그려볼게요.</p>
                 <button className="pv-btn primary big" onClick={() => onMakeMockup()}>
-                  🎨 이 기획안으로 화면 만들기
+                  <Icon name="sparkle" size={16} />
+                  이 기획안으로 화면 만들기
                 </button>
               </>
             )}

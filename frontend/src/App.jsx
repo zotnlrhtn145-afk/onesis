@@ -8,6 +8,8 @@ import MessageResult from './components/MessageResult'
 import PreviewPanel from './components/PreviewPanel'
 import BuildModal from './components/BuildModal'
 import StatsView from './components/StatsView'
+import PlansView from './components/PlansView'
+import Icon from './components/Icon'
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken())
@@ -37,7 +39,7 @@ export default function App() {
   const abortRef = useRef(null)
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [view, setView] = useState('chat') // 'chat' | 'stats'
+  const [view, setView] = useState('home') // 'home' | 'plans' | 'stats'
   const [mobileTab, setMobileTab] = useState('chat')
   const [previewWidth, setPreviewWidth] = useState(440)
   const [previewOpen, setPreviewOpen] = useState(false) // 데스크톱 미리보기 패널 열림
@@ -185,7 +187,7 @@ export default function App() {
   async function selectConversation(id) {
     if (sending) return
     setSidebarOpen(false)
-    setView('chat')
+    setView('home')
     setActiveId(id)
     setRun(null)
     setRunError('')
@@ -238,7 +240,7 @@ export default function App() {
     setMobileTab('chat')
     setPreviewOpen(false)
     userClosedPreviewRef.current = false
-    setView('chat')
+    setView('home')
   }
 
   async function deleteConversation(id) {
@@ -791,24 +793,32 @@ export default function App() {
         onLogout={doLogout}
         open={sidebarOpen}
         view={view}
-        onOpenStats={() => {
-          setView('stats')
+        onNavigate={(v) => {
+          setView(v)
           setSidebarOpen(false)
         }}
       />
       <div className={`backdrop ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {view === 'stats' && <StatsView onMenu={() => setSidebarOpen(true)} />}
+      {view === 'plans' && (
+        <PlansView
+          conversations={conversations}
+          onSelect={selectConversation}
+          onNew={newConversation}
+          onMenu={() => setSidebarOpen(true)}
+        />
+      )}
 
       <div
         className="main-area"
         data-mobile={mobileTab}
-        style={view === 'stats' ? { display: 'none' } : undefined}
+        style={view === 'home' ? undefined : { display: 'none' }}
       >
         <div className="chat-pane">
           <div className="topbar">
             <button className="hamburger" onClick={() => setSidebarOpen(true)}>
-              ☰
+              <Icon name="menu" size={22} />
             </button>
             <div className="logo-badge" style={{ width: 26, height: 26, fontSize: 14 }}>
               O
@@ -818,7 +828,8 @@ export default function App() {
 
           {preview && !previewOpen && (
             <button className="preview-toggle-pill" onClick={openPreview} title="미리보기 패널 열기">
-              ◧ 미리보기
+              <Icon name="panel" size={16} />
+              미리보기
             </button>
           )}
 
@@ -846,7 +857,9 @@ export default function App() {
                       <MessageResult message={m} />
                       {i === lastResultIdx && preview && (
                         <button className="artifact-card" onClick={openPreview}>
-                          <span className="artifact-ic">📄</span>
+                          <span className="artifact-ic">
+                            <Icon name="doc" size={22} />
+                          </span>
                           <span className="artifact-tx">
                             <b>기획안 · 화면 미리보기</b>
                             <small>패널에서 보기 · 편집 · 화면 만들기 →</small>
