@@ -10,6 +10,7 @@ import BuildModal from './components/BuildModal'
 import StatsView from './components/StatsView'
 import PlansView from './components/PlansView'
 import Icon from './components/Icon'
+import AiLogo from './components/AiLogo'
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken())
@@ -37,6 +38,7 @@ export default function App() {
   const [mode, setMode] = useState('ask') // 'ask' | 'refine'
   const [sending, setSending] = useState(false)
   const abortRef = useRef(null)
+  const textareaRef = useRef(null)
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [view, setView] = useState('home') // 'home' | 'plans' | 'stats'
@@ -130,6 +132,11 @@ export default function App() {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000)
     return () => clearInterval(t)
   }, [sending])
+
+  // 전송/초기화로 입력이 비면 입력창 높이를 원래대로 되돌린다
+  useEffect(() => {
+    if (input === '' && textareaRef.current) textareaRef.current.style.height = 'auto'
+  }, [input])
 
   // 현재 대화를 기기에 캐시(오프라인 열람용). 진행 중에는 저장하지 않음.
   useEffect(() => {
@@ -933,7 +940,7 @@ export default function App() {
                           onClick={() => toggleAi(p.id)}
                           title={on ? '끄기' : '켜기'}
                         >
-                          <span className="ai-dot" />
+                          <AiLogo id={p.id} size={16} />
                           {p.name}
                         </button>
                       )
@@ -947,6 +954,7 @@ export default function App() {
               )}
               <div className="input-row">
                 <textarea
+                  ref={textareaRef}
                   rows={1}
                   placeholder={
                     mode === 'refine'
@@ -962,20 +970,21 @@ export default function App() {
                     e.target.style.height = Math.min(e.target.scrollHeight, 180) + 'px'
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    // Enter = 줄바꿈, Shift+Enter = 전송
+                    if (e.key === 'Enter' && e.shiftKey) {
                       e.preventDefault()
                       send()
                     }
                   }}
                 />
-                <button className="send-btn" onClick={send} disabled={!canSend}>
-                  {sending ? '…' : '↑'}
+                <button className="send-btn" onClick={send} disabled={!canSend} title="보내기">
+                  {sending ? '…' : <Icon name="send" size={18} strokeWidth={2} />}
                 </button>
               </div>
               <div className="composer-hint">
                 {sending
                   ? '토론이 진행 중입니다…'
-                  : 'Enter 로 전송 · Shift+Enter 로 줄바꿈'}
+                  : 'Shift+Enter 로 전송 · Enter 로 줄바꿈 · 모바일은 ↑ 버튼'}
               </div>
             </div>
           </div>
