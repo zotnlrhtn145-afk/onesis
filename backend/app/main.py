@@ -260,6 +260,11 @@ async def api_build(req: schemas.BuildReq) -> StreamingResponse:
     if not instruction:
         raise HTTPException(status_code=400, detail="제작할 내용이 비어 있습니다.")
 
+    # 승인한 화면 디자인(HTML)이 있으면 '이 디자인 그대로' 만들도록 지시문에 합친다.
+    design = (req.design_html or "").strip()
+    if design:
+        instruction = prompts.build_with_design(instruction, design)
+
     async def gen() -> AsyncIterator[str]:
         try:
             async for evt in builder.run_build(req.title or "build", instruction):

@@ -7,7 +7,7 @@ export default function PreviewPanel({
   editing,
   onEditToggle,
   onChange,
-  onBuild,
+  onBuildFromMockup,
   onToast,
   onClose,
   mockup,
@@ -62,9 +62,6 @@ export default function PreviewPanel({
             <button className="pv-btn" onClick={copy} disabled={!content}>
               복사
             </button>
-            <button className="pv-btn primary" onClick={onBuild} disabled={!content}>
-              이대로 제작하기
-            </button>
           </>
         ) : (
           <>
@@ -89,8 +86,13 @@ export default function PreviewPanel({
             <button className="pv-btn" onClick={copyHtml} disabled={!mockup}>
               코드 복사
             </button>
-            <button className="pv-btn primary" onClick={onBuild} disabled={!content}>
-              이대로 제작하기
+            <button
+              className="pv-btn primary"
+              onClick={onBuildFromMockup}
+              disabled={!mockup}
+              title="지금 이 화면 그대로 실제로 만들기"
+            >
+              이 화면 그대로 제작하기
             </button>
           </>
         )}

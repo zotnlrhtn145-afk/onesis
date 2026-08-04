@@ -656,14 +656,20 @@ export default function App() {
     })
   }
 
-  function onBuild() {
-    if (!preview || !online) {
-      if (!online) showToast('오프라인 상태에서는 제작할 수 없어요.')
+  // 승인한 화면 미리보기(디자인) 그대로 실제 화면을 제작
+  function onBuildFromMockup() {
+    if (!online) {
+      showToast('오프라인 상태에서는 제작할 수 없어요.')
+      return
+    }
+    if (!mockup) {
+      showToast('먼저 마음에 드는 화면 미리보기를 만들어 주세요.')
       return
     }
     if (
       !window.confirm(
-        '이 내용 그대로 클로드 코드에게 제작을 맡길까요?\n\n전용 폴더에서만 작업하며, 끝나면 결과물을 zip으로 받을 수 있어요.'
+        '지금 보이는 이 화면 디자인 그대로,\n기획안의 기능을 담아 실제로 동작하는 화면을 만들어요.\n\n' +
+          '클로드 코드가 전용 폴더에서만 제작하고, 끝나면 결과물을 zip으로 받을 수 있어요.'
       )
     )
       return
@@ -671,7 +677,7 @@ export default function App() {
     setBuild({ active: true, logs: [], buildId: null, files: [], done: false, error: '' })
     buildAbortRef.current = streamPost(
       '/api/build',
-      { title, instruction: preview, conversation_id: activeId },
+      { title, instruction: preview || '', design_html: mockup, conversation_id: activeId },
       handleBuildEvent,
       (e) => {
         if (e.message === '401') doLogout()
@@ -965,7 +971,7 @@ export default function App() {
                 // 오프라인 편집 내용은 기기에 저장했다가 연결 시 자동 동기화
                 if (!online && activeId) pendingPreview.set(activeId, v)
               }}
-              onBuild={onBuild}
+              onBuildFromMockup={onBuildFromMockup}
               onToast={showToast}
               onClose={closePreview}
               mockup={mockup}

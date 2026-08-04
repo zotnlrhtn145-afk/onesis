@@ -34,6 +34,7 @@ class BuildReq(BaseModel):
     title: Optional[str] = None
     instruction: str
     conversation_id: Optional[str] = None
+    design_html: Optional[str] = None  # 승인한 화면 미리보기(HTML) — 이 디자인 그대로 제작
 
 
 class PreviewReq(BaseModel):
