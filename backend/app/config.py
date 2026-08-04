@@ -40,6 +40,10 @@ GEMINI_MODEL = _get("GEMINI_MODEL", "gemini-2.0-flash")
 MAX_TOKENS = int(_get("MAX_TOKENS", "2000"))
 # 최종 정리(답변 + '이렇게 결론이 나왔어요' 섹션)는 잘리지 않게 더 넉넉히
 FINAL_MAX_TOKENS = int(_get("FINAL_MAX_TOKENS", "4000"))
+# 제작(기획) 최종 = 상세 개발 기획서(환경·카테고리·페이지·기능·데이터모델)라 매우 길다
+BUILD_MAX_TOKENS = int(_get("BUILD_MAX_TOKENS", "8000"))
+# 제작 질문의 중간 제안(초안/수정)도 넉넉히 — 깊은 내용이 잘리지 않게
+BUILD_STAGE_TOKENS = int(_get("BUILD_STAGE_TOKENS", "3500"))
 # 한 AI 호출 타임아웃(초)
 AI_TIMEOUT = int(_get("AI_TIMEOUT", "120"))
 

@@ -117,7 +117,7 @@ async def _run_single(
     try:
         doc = await ai_clients.call_ai(
             ai, prompts.initial_system(name), prompts.initial_user(question, is_build),
-            max_tokens=config.FINAL_MAX_TOKENS)
+            max_tokens=config.BUILD_MAX_TOKENS if is_build else config.FINAL_MAX_TOKENS)
     except ai_clients.AIError as e:
         yield {"type": "ai_error", "ai": ai, "stage": "final", "error": str(e)}
         yield {"type": "error", "error": f"{name}가 응답하지 못했습니다: {e}"}
@@ -156,7 +156,8 @@ async def _run_symmetric(
     answers: dict[str, str] = {}
     tasks = {
         a: ai_clients.call_ai(a, prompts.initial_system(config.name_of(a)),
-                              prompts.initial_user(question, is_build))
+                              prompts.initial_user(question, is_build),
+                              max_tokens=config.BUILD_STAGE_TOKENS if is_build else 0)
         for a in ais
     }
     async for ai_id, ok, val in _gather_stream(tasks):
@@ -209,6 +210,7 @@ async def _run_symmetric(
                 a, prompts.revise_system(config.name_of(a)),
                 prompts.revise_user(question, answers[a],
                                     {c: critiques1[c] for c in critiques1 if c != a}),
+                max_tokens=config.BUILD_STAGE_TOKENS if is_build else 0,
             )
             for a in revisers
         }
@@ -257,7 +259,7 @@ async def _run_symmetric(
             final_doc = await ai_clients.call_ai(
                 mod, prompts.moderator_system(),
                 prompts.moderator_user(question, answers, critiques2, is_build),
-                max_tokens=config.FINAL_MAX_TOKENS,
+                max_tokens=config.BUILD_MAX_TOKENS if is_build else config.FINAL_MAX_TOKENS,
             )
             moderator = mod
             break
@@ -304,7 +306,8 @@ async def _run_lead(
     try:
         current = await ai_clients.call_ai(
             lead, prompts.lead_propose_system(lead_name, part),
-            prompts.lead_propose_user(question, part))
+            prompts.lead_propose_user(question, part),
+            max_tokens=config.BUILD_STAGE_TOKENS if is_build else 0)
         transcript["initial"][lead] = current
         yield {"type": "ai_done", "ai": lead, "stage": "initial", "content": current}
     except ai_clients.AIError as e:
@@ -328,7 +331,7 @@ async def _run_lead(
             doc = await ai_clients.call_ai(
                 lead, prompts.lead_final_system(lead_name),
                 prompts.lead_final_user(question, current, feedback, is_build),
-                max_tokens=config.FINAL_MAX_TOKENS)
+                max_tokens=config.BUILD_MAX_TOKENS if is_build else config.FINAL_MAX_TOKENS)
         except ai_clients.AIError:
             doc = current
         doc = _append_build_note(doc, part)
@@ -374,7 +377,8 @@ async def _run_lead(
             try:
                 current = await ai_clients.call_ai(
                     lead, prompts.lead_revise_system(lead_name),
-                    prompts.lead_revise_user(question, current, feedback))
+                    prompts.lead_revise_user(question, current, feedback),
+                    max_tokens=config.BUILD_STAGE_TOKENS if is_build else 0)
                 transcript["revise1"][lead] = current
                 yield {"type": "ai_done", "ai": lead, "stage": "revise1", "content": current}
             except ai_clients.AIError as e:
