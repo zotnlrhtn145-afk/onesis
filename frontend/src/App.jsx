@@ -935,13 +935,13 @@ export default function App() {
                         <button
                           key={p.id}
                           type="button"
-                          className={`ai-pill ${on ? 'on' : ''}`}
+                          className={`ai-pill logo-only ${on ? 'on' : ''}`}
                           style={{ '--dot': p.color }}
                           onClick={() => toggleAi(p.id)}
-                          title={on ? '끄기' : '켜기'}
+                          title={`${p.name} ${on ? '· 켜짐 (끄려면 클릭)' : '· 꺼짐 (켜려면 클릭)'}`}
+                          aria-label={p.name}
                         >
-                          <AiLogo id={p.id} size={16} />
-                          {p.name}
+                          <AiLogo id={p.id} size={22} />
                         </button>
                       )
                     })}

@@ -618,3 +618,7 @@ button svg { flex-shrink: 0; }
 .plans-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--muted); padding: 56px 20px; text-align: center; }
 .plans-empty svg { color: var(--border); }
 .plans-empty p { margin: 0; font-size: 14px; }
+
+/* AI 선택: 로고 전용 칩(글씨 없이 브랜드 로고만) */
+.ai-pill.logo-only { padding: 6px 9px; gap: 0; }
+.ai-pill.logo-only svg { display: block; }
