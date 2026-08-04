@@ -41,6 +41,14 @@ class PreviewReq(BaseModel):
     preview: str
 
 
+class StatsReq(BaseModel):
+    query: str  # 자산 이름/티커 (예: 삼성전자, AAPL, 비트코인)
+
+
+class ExplainReq(BaseModel):
+    symbol: str
+
+
 class MockupReq(BaseModel):
     conversation_id: Optional[str] = None
     brief: Optional[str] = None          # 기획안(설명)으로 화면 새로 만들기

@@ -22,6 +22,8 @@ TOKEN_TTL_SECONDS = int(_get("TOKEN_TTL_SECONDS", str(60 * 60 * 24 * 30)))
 # 클라우드에서는 영구 볼륨 경로(예: /data)를 DATA_DIR 로 지정하세요.
 DATA_DIR = Path(_get("DATA_DIR", str(Path(__file__).resolve().parent.parent / "data")))
 DB_PATH = DATA_DIR / "onesis.db"
+# 시장 데이터 창고(가격 축적용) — 대화 DB와 분리해 관리
+MARKET_DB_PATH = DATA_DIR / "market.db"
 
 # ---------- API 키 (환경변수로만 관리) ----------
 ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")

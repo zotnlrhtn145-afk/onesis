@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_clients, auth, builder, config, db, debate, jobs, prompts, schemas
+from . import ai_clients, auth, builder, config, db, debate, jobs, market, prompts, schemas
 
 app = FastAPI(title="Onesis", docs_url=None, redoc_url=None)
 
@@ -27,6 +27,7 @@ app.add_middleware(
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
+    market.init()
 
 
 # ---------------- 공개 엔드포인트 ----------------
@@ -251,6 +252,55 @@ async def api_mockup(req: schemas.MockupReq) -> dict[str, str]:
         except Exception:
             pass
     return {"html": html}
+
+
+# ---------------- 시장 통계 (실제 데이터 축적 + 다각도 계산) ----------------
+@app.get("/api/market/assets", dependencies=[Depends(auth.require_auth)])
+def api_market_assets() -> dict[str, Any]:
+    """축적 중인 자산 목록과 데이터량."""
+    return {"assets": market.list_assets()}
+
+
+@app.post("/api/market/stats", dependencies=[Depends(auth.require_auth)])
+def api_market_stats(req: schemas.StatsReq) -> dict[str, Any]:
+    """자산 이름/티커로 통계 계산(없으면 데이터 적재 후 계산, 오래됐으면 갱신=축적)."""
+    r = market.resolve(req.query)
+    if not r:
+        raise HTTPException(status_code=404, detail="자산을 찾지 못했어요. 이름이나 티커를 확인해 주세요.")
+    try:
+        market.ensure(r["symbol"], r["name"], r["market"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"데이터를 가져오지 못했어요: {e}")
+    stats = market.compute_stats(r["symbol"])
+    if not stats:
+        raise HTTPException(status_code=404, detail="데이터가 충분하지 않아요.")
+    return {"stats": stats}
+
+
+@app.post("/api/market/seed", dependencies=[Depends(auth.require_auth)])
+def api_market_seed() -> dict[str, Any]:
+    """대표 자산들의 데이터를 미리 축적(환경 구축)."""
+    return {"seeded": market.seed()}
+
+
+@app.post("/api/market/explain", dependencies=[Depends(auth.require_auth)])
+async def api_market_explain(req: schemas.ExplainReq) -> dict[str, str]:
+    """계산된 통계를 AI가 다각도로 해설(투자자문 아님)."""
+    stats = market.compute_stats(req.symbol)
+    if not stats:
+        raise HTTPException(status_code=404, detail="먼저 통계를 계산해 주세요.")
+    ais = ai_clients.available_ids()
+    if config.MOCK or not ais:
+        return {"text": "_(데모 모드) 실제 AI 키를 넣으면 통계를 다각도로 해설해 드려요._"}
+    ai = config.MODERATOR_ID if config.MODERATOR_ID in ais else ais[0]
+    try:
+        text = await ai_clients.call_ai(
+            ai, prompts.market_explain_system(), prompts.market_explain_user(stats),
+            max_tokens=1500,
+        )
+    except ai_clients.AIError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"text": text}
 
 
 # ---------------- 이대로 제작하기 (클로드 코드 연동) ----------------

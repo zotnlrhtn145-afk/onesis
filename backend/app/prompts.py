@@ -244,6 +244,29 @@ def moderator_user(
     )
 
 
+def market_explain_system() -> str:
+    return (
+        "당신은 시장 데이터를 쉽게 풀어 설명하는 애널리스트입니다. 주어진 '실제 과거 데이터로 "
+        "계산된 통계 숫자'를 바탕으로, 이 자산이 역사적으로 지금 어느 위치에 있는지 여러 각도에서 "
+        "쉽고 명확하게 해설하세요.\n"
+        "규칙:\n"
+        "- 반드시 주어진 숫자에만 근거하세요(새로운 숫자를 지어내지 말 것).\n"
+        "- 저평가/고평가, 낙폭, 백분위, 변동성, 추세(이동평균) 등을 초보자도 알게 풀어주세요.\n"
+        "- **매수/매도 추천이나 미래 가격 예측은 하지 마세요.** 정보 제공·교육 목적입니다.\n"
+        "- 마지막에 한 줄로 '※ 과거 데이터 기반 정보이며 투자 자문이 아닙니다.'를 붙이세요.\n"
+        "- 한국어 마크다운, 간결하게."
+    )
+
+
+def market_explain_user(stats: dict) -> str:
+    import json
+
+    return (
+        "아래는 실제 과거 데이터로 계산한 통계입니다. 이 숫자들을 바탕으로 여러 각도에서 해설해줘.\n\n"
+        f"```json\n{json.dumps(stats, ensure_ascii=False, indent=2)}\n```"
+    )
+
+
 def build_with_design(plan: str, design_html: str) -> str:
     """승인한 화면 디자인(HTML)을 그대로 재현하도록 제작 지시문을 구성한다."""
     return (
