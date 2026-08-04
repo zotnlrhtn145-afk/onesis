@@ -3,7 +3,7 @@ import { api, getToken, clearToken, streamPost, streamGet } from './api'
 import { cache, queue, pendingPreview } from './offline'
 import Login from './components/Login'
 import Sidebar from './components/Sidebar'
-import DebateProgress from './components/DebateProgress'
+import ThinkingLoader from './components/ThinkingLoader'
 import MessageResult from './components/MessageResult'
 import PreviewPanel from './components/PreviewPanel'
 import BuildModal from './components/BuildModal'
@@ -29,6 +29,7 @@ export default function App() {
   const [editing, setEditing] = useState(false)
 
   const [input, setInput] = useState('')
+  const [elapsed, setElapsed] = useState(0) // 고민 중 경과 시간(초)
   const [selectedAis, setSelectedAis] = useState(null) // 질문에 쓸 AI 선택(null=아직 미설정→전체)
   const [mode, setMode] = useState('ask') // 'ask' | 'refine'
   const [sending, setSending] = useState(false)
@@ -112,6 +113,17 @@ export default function App() {
   useEffect(() => {
     activeIdRef.current = activeId
   }, [activeId])
+
+  // 고민 중 경과 시간(초) — 진행 중에만 1초마다 증가, 끝나면 0으로
+  useEffect(() => {
+    if (!sending) {
+      setElapsed(0)
+      return
+    }
+    setElapsed(0)
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000)
+    return () => clearInterval(t)
+  }, [sending])
 
   // 현재 대화를 기기에 캐시(오프라인 열람용). 진행 중에는 저장하지 않음.
   useEffect(() => {
@@ -790,7 +802,10 @@ export default function App() {
                         <span>연결이 잠시 끊겼어요. 토론은 서버에서 계속 진행 중이고, 다시 연결하고 있어요…</span>
                       </div>
                     )}
-                    <DebateProgress run={run} />
+                    <ThinkingLoader
+                      count={(run.participants || []).length}
+                      elapsed={elapsed}
+                    />
                   </div>
                 )}
                 {run && run.refine && (
