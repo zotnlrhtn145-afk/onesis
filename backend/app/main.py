@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_clients, auth, builder, config, db, debate, prompts, schemas
+from . import ai_clients, auth, builder, config, db, debate, jobs, prompts, schemas
 
 app = FastAPI(title="Onesis", docs_url=None, redoc_url=None)
 
@@ -117,33 +117,39 @@ async def api_ask(req: schemas.AskReq) -> StreamingResponse:
     if is_new:
         conversation_id = db.create_conversation(question)
 
+    # 토론을 HTTP 연결과 분리해 백그라운드로 시작한다.
+    # → 페이지를 벗어나거나 인터넷이 끊겨도 서버는 끝까지 진행해 결론을 저장한다.
+    jobs.start_job(conversation_id, question)
+
     async def gen() -> AsyncIterator[str]:
         yield _sse({"type": "conversation", "id": conversation_id,
                     "is_new": is_new, "question": question})
-        final_content = None
-        transcript = None
-        is_build = False
-        try:
-            async for evt in debate.run_debate(question):
-                if evt.get("type") == "final":
-                    final_content = evt.get("content")
-                    transcript = evt.get("transcript")
-                    is_build = evt.get("is_build", False)
-                yield _sse(evt)
-        except Exception as e:  # 방어: 스트림 도중 예외
-            yield _sse({"type": "error", "error": f"서버 오류: {e}"})
-        finally:
-            if final_content is not None:
-                try:
-                    mid = db.add_exchange(
-                        conversation_id, question, final_content,
-                        transcript or {}, is_build, final_content,
-                    )
-                    yield _sse({"type": "saved", "conversation_id": conversation_id,
-                                "message_id": mid})
-                except Exception as e:
-                    yield _sse({"type": "error", "error": f"저장 실패: {e}"})
+        # 진행 상황을 관찰만 한다. 여기서 연결이 끊겨도 토론 자체는 계속된다.
+        async for evt in jobs.subscribe(conversation_id):
+            yield _sse(evt)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@app.get("/api/running", dependencies=[Depends(auth.require_auth)])
+def api_running() -> dict[str, list[str]]:
+    """지금 서버에서 진행 중인 토론의 대화 id 목록(재접속 판단용)."""
+    return {"ids": jobs.running_ids()}
+
+
+@app.get("/api/conversations/{cid}/live", dependencies=[Depends(auth.require_auth)])
+async def api_live(cid: str) -> StreamingResponse:
+    """진행 중인(또는 방금 끝난) 토론에 다시 붙는다. 연결이 끊겼다 돌아왔을 때 사용."""
+    async def gen() -> AsyncIterator[str]:
+        job = jobs.get_job(cid)
+        if not job:
+            yield _sse({"type": "no_job"})
             yield _sse({"type": "done"})
+            return
+        yield _sse({"type": "conversation", "id": cid, "is_new": False,
+                    "question": job.get("question", "")})
+        async for evt in jobs.subscribe(cid):
+            yield _sse(evt)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=_SSE_HEADERS)
 

@@ -161,6 +161,15 @@ a { color: var(--accent); }
 .step-chip.active { background: var(--grad); color: #fff; border-color: transparent; }
 .step-chip.done { color: var(--accent); border-color: var(--accent); }
 
+/* 재접속 안내 */
+.reconnect-note {
+  display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 1.5;
+  color: #b25e09; background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 14px;
+}
+.reconnect-note .spinner { border-top-color: #f59e0b; }
+
 .ai-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .ai-card {
   background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--dot);

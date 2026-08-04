@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, getToken, clearToken, streamPost } from './api'
+import { api, getToken, clearToken, streamPost, streamGet } from './api'
 import { cache, queue, pendingPreview } from './offline'
 import Login from './components/Login'
 import Sidebar from './components/Sidebar'
@@ -46,6 +46,9 @@ export default function App() {
   const busyRef = useRef(false) // 토론 진행 중 여부(예약 질문 순차 처리용)
   const activeIdRef = useRef(null)
   const onlineHandlerRef = useRef(() => {})
+  const reconnectTimerRef = useRef(null) // 재접속 대기 타이머
+  const reconnectAbortRef = useRef(null) // 재접속 스트림 중단 함수
+  const runningIdsRef = useRef(new Set()) // 서버에서 진행 중인 대화 id들
 
   const messagesEndRef = useRef(null)
 
@@ -61,6 +64,13 @@ export default function App() {
         const cached = cache.loadConvList()
         if (cached.length) setConversations(cached)
       }
+    }
+    // 서버에서 아직 진행 중인 토론이 있으면 기억해 둔다(대화 열 때 자동 재접속용)
+    try {
+      const r = await api.runningIds()
+      runningIdsRef.current = new Set(r.ids || [])
+    } catch (_) {
+      /* 무시 */
     }
   }, [])
 
@@ -161,6 +171,10 @@ export default function App() {
       const conv = await api.getConversation(id)
       cache.saveConv(id, conv)
       applyConv(conv, false)
+      // 이 대화의 토론이 서버에서 아직 진행 중이면 라이브로 이어서 본다.
+      if (runningIdsRef.current.has(id)) {
+        attachLive(id, conv.title || '')
+      }
     } catch (e) {
       if (e.message === '401') return doLogout()
       const c = cache.loadConv(id)
@@ -201,6 +215,10 @@ export default function App() {
     switch (evt.type) {
       case 'conversation':
         setActiveId(evt.id)
+        if (r) {
+          r.convId = evt.id
+          if (!r.question && evt.question) r.question = evt.question
+        }
         if (evt.is_new) {
           setMockup('')
           setConversations((cs) => [
@@ -251,7 +269,20 @@ export default function App() {
     setRun({ ...r })
   }
 
+  // 재접속 관련 타이머/스트림 정리
+  function clearReconnect() {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    if (reconnectAbortRef.current) {
+      reconnectAbortRef.current()
+      reconnectAbortRef.current = null
+    }
+  }
+
   function finishAsk() {
+    clearReconnect()
     const r = runRef.current
     if (r && r.finalMsg) {
       setMessages((ms) => [...ms, r.finalMsg])
@@ -267,31 +298,150 @@ export default function App() {
     setTimeout(maybeProcessQueue, 400)
   }
 
-  function runAsk(question, conversationId) {
-    busyRef.current = true
-    setSending(true)
-    setPreviewLive(true)
-    setRunError('')
-    setMobileTab('chat')
-    setActiveId(conversationId || null)
-    runRef.current = {
+  // 스트림이 끊겼을 때: 서버 토론은 계속 진행 중이므로 라이브 스트림으로 다시 붙는다.
+  function onAskStreamError(e) {
+    if (e.message === '401') {
+      doLogout()
+      finishAsk()
+      return
+    }
+    const r = runRef.current
+    if (r && r.convId) {
+      // 대화가 이미 시작됨 → 서버에서 계속 진행 중. 재접속을 시도한다.
+      r.reconnecting = true
+      setRun({ ...r })
+      abortRef.current = null
+      scheduleReconnect(r.convId, 1200)
+    } else {
+      // 아직 시작 전 초기 연결 실패 → 실제 오류(결과는 없음)
+      setRunError('연결 오류가 발생했습니다.')
+      finishAsk()
+    }
+  }
+
+  function scheduleReconnect(cid, delay) {
+    if (reconnectTimerRef.current || reconnectAbortRef.current) return
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null
+      tryReconnect(cid)
+    }, delay)
+  }
+
+  // 진행 중인 토론에 다시 붙기(라이브 스트림). 실패하면 잠시 후 재시도.
+  function tryReconnect(cid) {
+    if (!cid || !runRef.current || !runRef.current.reconnecting) return
+    if (reconnectAbortRef.current) return
+    if (!navigator.onLine) {
+      scheduleReconnect(cid, 3000)
+      return
+    }
+    reconnectAbortRef.current = streamGet(
+      `/api/conversations/${cid}/live`,
+      (evt) => {
+        if (evt.type === 'no_job') {
+          // 서버에 진행 중 작업 없음(이미 끝나 저장됐거나 서버 재시작) → 저장본을 불러온다
+          clearReconnect()
+          reloadFinished(cid)
+          return
+        }
+        const rr = runRef.current
+        if (rr && rr.reconnecting) rr.reconnecting = false
+        handleAskEventWithDone(evt)
+      },
+      () => {
+        // 재접속 실패 → 잠시 후 다시 시도
+        reconnectAbortRef.current = null
+        if (runRef.current && runRef.current.reconnecting) scheduleReconnect(cid, 3000)
+      }
+    )
+  }
+
+  // 진행 중이던 작업이 이미 끝나 서버 메모리에서 사라진 경우: 저장된 결과를 불러온다.
+  async function reloadFinished(cid) {
+    try {
+      const conv = await api.getConversation(cid)
+      setActiveId(cid)
+      setMessages(
+        (conv.messages || []).map((m) => ({
+          question: m.question,
+          final: m.final,
+          transcript: m.transcript,
+          is_build: m.is_build,
+        }))
+      )
+      if (conv.preview) setPreview(conv.preview)
+      setMockup(conv.mockup || '')
+    } catch (_) {
+      /* 무시 */
+    }
+    runRef.current = null
+    setRun(null)
+    setSending(false)
+    setPreviewLive(false)
+    busyRef.current = false
+    loadConversations()
+    setTimeout(maybeProcessQueue, 400)
+  }
+
+  function newRun(question, conversationId) {
+    return {
       question,
+      convId: conversationId || null,
       participants: (config?.participants || []).filter((p) => p.available),
       currentStep: null,
       stepLabel: '',
       completed: [],
       aiStatus: {},
       finalMsg: null,
+      reconnecting: false,
     }
+  }
+
+  function runAsk(question, conversationId) {
+    clearReconnect()
+    busyRef.current = true
+    setSending(true)
+    setPreviewLive(true)
+    setRunError('')
+    setMobileTab('chat')
+    setActiveId(conversationId || null)
+    runRef.current = newRun(question, conversationId)
     setRun({ ...runRef.current })
     abortRef.current = streamPost(
       '/api/ask',
       { question, conversation_id: conversationId },
       handleAskEventWithDone,
-      (e) => {
-        if (e.message === '401') doLogout()
-        else setRunError('연결 오류가 발생했습니다.')
-        finishAsk()
+      onAskStreamError
+    )
+  }
+
+  // 이미 진행 중인(서버) 토론이 있는 대화를 열 때: 라이브로 이어서 본다.
+  function attachLive(cid, title) {
+    clearReconnect()
+    busyRef.current = true
+    setSending(true)
+    setPreviewLive(true)
+    setRunError('')
+    setActiveId(cid)
+    runRef.current = newRun(title || '', cid)
+    setRun({ ...runRef.current })
+    reconnectAbortRef.current = streamGet(
+      `/api/conversations/${cid}/live`,
+      (evt) => {
+        if (evt.type === 'no_job') {
+          clearReconnect()
+          reloadFinished(cid)
+          return
+        }
+        handleAskEventWithDone(evt)
+      },
+      () => {
+        reconnectAbortRef.current = null
+        if (runRef.current) {
+          runRef.current.reconnecting = true
+          setRun({ ...runRef.current })
+          scheduleReconnect(cid, 3000)
+        }
       }
     )
   }
@@ -517,6 +667,14 @@ export default function App() {
   onlineHandlerRef.current = () => {
     setOnline(true)
     if (!config) api.getConfig().then(setConfig).catch(() => {})
+    // 진행 중이던 토론이 끊겼다면 즉시 재접속을 시도(대기 타이머를 앞당김)
+    if (runRef.current && runRef.current.reconnecting && !reconnectAbortRef.current) {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+      tryReconnect(runRef.current.convId)
+    }
     flushPendingPreviews().finally(() => {
       loadConversations()
       setTimeout(maybeProcessQueue, 600)
@@ -587,6 +745,12 @@ export default function App() {
                 {run && run.question && (
                   <div>
                     <div className="q-bubble">{run.question}</div>
+                    {run.reconnecting && (
+                      <div className="reconnect-note">
+                        <div className="spinner" />
+                        <span>연결이 잠시 끊겼어요. 토론은 서버에서 계속 진행 중이고, 다시 연결하고 있어요…</span>
+                      </div>
+                    )}
                     <DebateProgress run={run} />
                   </div>
                 )}

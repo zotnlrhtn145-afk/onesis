@@ -76,6 +76,56 @@ export const api = {
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     }).then(handle),
+
+  runningIds: () =>
+    fetch('/api/running', { headers: authHeaders() }).then(handle),
+}
+
+// SSE 블록(빈 줄로 구분)을 파싱해 onEvent 로 넘긴다.
+async function pumpSSE(res, onEvent, onError) {
+  if (res.status === 401) {
+    clearToken()
+    onError && onError(new Error('401'))
+    return
+  }
+  if (!res.ok || !res.body) {
+    onError && onError(new Error(`오류 ${res.status}`))
+    return
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let idx
+    while ((idx = buffer.indexOf('\n\n')) !== -1) {
+      const block = buffer.slice(0, idx)
+      buffer = buffer.slice(idx + 2)
+      for (const line of block.split('\n')) {
+        const trimmed = line.startsWith('data:') ? line.slice(5).trim() : ''
+        if (!trimmed) continue
+        try {
+          onEvent(JSON.parse(trimmed))
+        } catch (_) {}
+      }
+    }
+  }
+}
+
+// GET 방식 SSE (진행 중인 토론 재접속용). 반환값: abort 함수
+export function streamGet(path, onEvent, onError) {
+  const controller = new AbortController()
+  ;(async () => {
+    try {
+      const res = await fetch(path, { headers: authHeaders(), signal: controller.signal })
+      await pumpSSE(res, onEvent, onError)
+    } catch (e) {
+      if (e.name !== 'AbortError') onError && onError(e)
+    }
+  })()
+  return () => controller.abort()
 }
 
 // SSE: fetch + ReadableStream 으로 이벤트를 파싱해 onEvent 로 전달.
@@ -90,36 +140,7 @@ export function streamPost(path, body, onEvent, onError) {
         body: JSON.stringify(body),
         signal: controller.signal,
       })
-      if (res.status === 401) {
-        clearToken()
-        onError && onError(new Error('401'))
-        return
-      }
-      if (!res.ok || !res.body) {
-        onError && onError(new Error(`오류 ${res.status}`))
-        return
-      }
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        // SSE 블록은 빈 줄(\n\n)로 구분
-        let idx
-        while ((idx = buffer.indexOf('\n\n')) !== -1) {
-          const block = buffer.slice(0, idx)
-          buffer = buffer.slice(idx + 2)
-          for (const line of block.split('\n')) {
-            const trimmed = line.startsWith('data:') ? line.slice(5).trim() : ''
-            if (!trimmed) continue
-            try {
-              onEvent(JSON.parse(trimmed))
-            } catch (_) {}
-          }
-        }
-      }
+      await pumpSSE(res, onEvent, onError)
     } catch (e) {
       if (e.name !== 'AbortError') onError && onError(e)
     }
