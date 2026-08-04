@@ -38,6 +38,8 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mobileTab, setMobileTab] = useState('chat')
   const [previewWidth, setPreviewWidth] = useState(440)
+  const [previewOpen, setPreviewOpen] = useState(false) // 데스크톱 미리보기 패널 열림
+  const userClosedPreviewRef = useRef(false) // 사용자가 직접 닫았으면 자동으로 다시 열지 않음
   const [toast, setToast] = useState('')
   const [online, setOnline] = useState(navigator.onLine)
   const [build, setBuild] = useState(null) // 제작 진행/결과
@@ -156,6 +158,17 @@ export default function App() {
     localStorage.setItem('onesis_theme', next)
   }
 
+  // 미리보기 패널 열기/닫기 (데스크톱=슬라이드 패널, 모바일=탭 전환)
+  function openPreview() {
+    if (window.innerWidth <= 900) setMobileTab('preview')
+    else setPreviewOpen(true)
+  }
+  function closePreview() {
+    userClosedPreviewRef.current = true
+    if (window.innerWidth <= 900) setMobileTab('chat')
+    else setPreviewOpen(false)
+  }
+
   function doLogout() {
     clearToken()
     setAuthed(false)
@@ -174,6 +187,8 @@ export default function App() {
     setRun(null)
     setRunError('')
     setEditing(false)
+    setPreviewOpen(false) // 기존 대화를 열 땐 채팅에 집중, 패널은 카드/버튼으로 열기
+    userClosedPreviewRef.current = false
     const applyConv = (conv, fromCache) => {
       setMessages(
         (conv.messages || []).map((m) => ({
@@ -218,6 +233,8 @@ export default function App() {
     setMode('ask')
     setSidebarOpen(false)
     setMobileTab('chat')
+    setPreviewOpen(false)
+    userClosedPreviewRef.current = false
   }
 
   async function deleteConversation(id) {
@@ -283,6 +300,9 @@ export default function App() {
         }
         setPreview(evt.content)
         setRunError('') // 최종 도달 → 진행 중 떴던 일시적 오류 문구 해제
+        // 결과가 나오면 데스크톱에서 미리보기 패널을 한 번 자동으로 열어준다
+        // (사용자가 직접 닫았던 경우엔 존중해서 열지 않음)
+        if (window.innerWidth > 900 && !userClosedPreviewRef.current) setPreviewOpen(true)
         break
       case 'error':
         setRunError(evt.error)
@@ -739,6 +759,14 @@ export default function App() {
 
   const showWelcome = messages.length === 0 && !run
   const canSend = input.trim() && !sending
+  // 가장 최근 '결과' 메시지 인덱스(그 아래에 미리보기 열기 카드를 붙인다)
+  let lastResultIdx = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!messages[i].refine) {
+      lastResultIdx = i
+      break
+    }
+  }
 
   return (
     <div className="app">
@@ -767,6 +795,12 @@ export default function App() {
             <span style={{ fontWeight: 800 }}>오네시스</span>
           </div>
 
+          {preview && !previewOpen && (
+            <button className="preview-toggle-pill" onClick={openPreview} title="미리보기 패널 열기">
+              ◧ 미리보기
+            </button>
+          )}
+
           {!online && <div className="offline-banner">오프라인 — 열람과 수정만 가능해요</div>}
 
           {showWelcome ? (
@@ -789,6 +823,15 @@ export default function App() {
                     <div key={i}>
                       <div className="q-bubble">{m.question}</div>
                       <MessageResult message={m} />
+                      {i === lastResultIdx && preview && (
+                        <button className="artifact-card" onClick={openPreview}>
+                          <span className="artifact-ic">📄</span>
+                          <span className="artifact-tx">
+                            <b>기획안 · 화면 미리보기</b>
+                            <small>패널에서 보기 · 편집 · 화면 만들기 →</small>
+                          </span>
+                        </button>
+                      )}
                     </div>
                   )
                 )}
@@ -905,25 +948,31 @@ export default function App() {
 
         </div>
 
-        <div className="splitter" onMouseDown={startDrag} />
+        {previewOpen && <div className="splitter" onMouseDown={startDrag} />}
 
-        <div className="preview-pane" style={{ width: previewWidth }}>
-          <PreviewPanel
-            content={preview}
-            live={previewLive}
-            editing={editing}
-            onEditToggle={() => setEditing((v) => !v)}
-            onChange={(v) => {
-              setPreview(v)
-              // 오프라인 편집 내용은 기기에 저장했다가 연결 시 자동 동기화
-              if (!online && activeId) pendingPreview.set(activeId, v)
-            }}
-            onBuild={onBuild}
-            onToast={showToast}
-            mockup={mockup}
-            mockupLoading={mockupLoading}
-            onMakeMockup={onMakeMockup}
-          />
+        <div
+          className={`preview-pane ${previewOpen ? 'open' : ''}`}
+          style={{ width: previewOpen ? previewWidth : 0 }}
+        >
+          <div className="preview-inner" style={{ width: previewWidth }}>
+            <PreviewPanel
+              content={preview}
+              live={previewLive}
+              editing={editing}
+              onEditToggle={() => setEditing((v) => !v)}
+              onChange={(v) => {
+                setPreview(v)
+                // 오프라인 편집 내용은 기기에 저장했다가 연결 시 자동 동기화
+                if (!online && activeId) pendingPreview.set(activeId, v)
+              }}
+              onBuild={onBuild}
+              onToast={showToast}
+              onClose={closePreview}
+              mockup={mockup}
+              mockupLoading={mockupLoading}
+              onMakeMockup={onMakeMockup}
+            />
+          </div>
         </div>
 
         <div className="mobile-tabs">

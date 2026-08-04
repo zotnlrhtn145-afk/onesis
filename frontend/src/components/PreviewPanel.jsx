@@ -9,6 +9,7 @@ export default function PreviewPanel({
   onChange,
   onBuild,
   onToast,
+  onClose,
   mockup,
   mockupLoading,
   onMakeMockup,
@@ -92,6 +93,11 @@ export default function PreviewPanel({
               이대로 제작하기
             </button>
           </>
+        )}
+        {onClose && (
+          <button className="pv-close" onClick={onClose} title="패널 닫기" aria-label="패널 닫기">
+            ✕
+          </button>
         )}
       </div>
 
