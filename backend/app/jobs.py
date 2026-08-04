@@ -57,12 +57,16 @@ async def _run(
     final_content = None
     transcript: dict[str, Any] | None = None
     is_build = False
+    last_preview = None  # 최종본이 안 나와도 마지막 중간본은 저장(유실 방지)
     try:
         async for evt in debate.run_debate(question, selected):
-            if evt.get("type") == "final":
+            t = evt.get("type")
+            if t == "final":
                 final_content = evt.get("content")
                 transcript = evt.get("transcript")
                 is_build = evt.get("is_build", False)
+            elif t == "preview" and evt.get("content"):
+                last_preview = evt.get("content")
             emit(evt)
     except asyncio.CancelledError:
         # 서버 종료 등으로 취소되어도 조용히 마무리 시도
@@ -70,12 +74,13 @@ async def _run(
     except Exception as e:  # 방어
         emit({"type": "error", "error": f"서버 오류: {e}"})
     finally:
-        # 결론이 나왔으면 연결 여부와 무관하게 저장
-        if final_content is not None:
+        # 최종본이 있으면 그걸, 없으면 마지막 중간본이라도 저장 → 작업이 유실되지 않게
+        content_to_save = final_content if final_content is not None else last_preview
+        if content_to_save:
             try:
                 mid = db.add_exchange(
-                    conversation_id, question, final_content,
-                    transcript or {}, is_build, final_content,
+                    conversation_id, question, content_to_save,
+                    transcript or {}, is_build, content_to_save,
                 )
                 emit({"type": "saved", "conversation_id": conversation_id, "message_id": mid})
             except Exception as e:

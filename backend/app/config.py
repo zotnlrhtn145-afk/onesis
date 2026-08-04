@@ -44,8 +44,8 @@ FINAL_MAX_TOKENS = int(_get("FINAL_MAX_TOKENS", "4000"))
 BUILD_MAX_TOKENS = int(_get("BUILD_MAX_TOKENS", "8000"))
 # 제작 질문의 중간 제안(초안/수정)도 넉넉히 — 깊은 내용이 잘리지 않게
 BUILD_STAGE_TOKENS = int(_get("BUILD_STAGE_TOKENS", "3500"))
-# 한 AI 호출 타임아웃(초)
-AI_TIMEOUT = int(_get("AI_TIMEOUT", "120"))
+# 한 AI 호출 타임아웃(초). 상세 기획서(수천 토큰)는 오래 걸리므로 넉넉히.
+AI_TIMEOUT = int(_get("AI_TIMEOUT", "240"))
 
 # 데모 모드: API 키 없이 가짜(mock) 응답으로 전체 흐름을 체험. ONESIS_MOCK=1
 MOCK = str(_get("ONESIS_MOCK", "0")).lower() in ("1", "true", "yes", "on")

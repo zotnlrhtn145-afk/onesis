@@ -263,7 +263,7 @@ async def _run_symmetric(
             )
             moderator = mod
             break
-        except ai_clients.AIError:
+        except Exception:  # 어떤 오류든 다음 AI로, 다 실패하면 폴백
             continue
     if not final_doc:
         final_doc = _fallback_doc(question, answers, is_build)
@@ -332,7 +332,7 @@ async def _run_lead(
                 lead, prompts.lead_final_system(lead_name),
                 prompts.lead_final_user(question, current, feedback, is_build),
                 max_tokens=config.BUILD_MAX_TOKENS if is_build else config.FINAL_MAX_TOKENS)
-        except ai_clients.AIError:
+        except Exception:  # 어떤 오류든 지금까지 다듬은 제안을 최종으로 사용
             doc = current
         doc = _append_build_note(doc, part)
         transcript["final_by"] = lead
