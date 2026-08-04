@@ -29,6 +29,7 @@ export default function App() {
   const [editing, setEditing] = useState(false)
 
   const [input, setInput] = useState('')
+  const [selectedAis, setSelectedAis] = useState(null) // 질문에 쓸 AI 선택(null=아직 미설정→전체)
   const [mode, setMode] = useState('ask') // 'ask' | 'refine'
   const [sending, setSending] = useState(false)
   const abortRef = useRef(null)
@@ -75,7 +76,16 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    api.getConfig().then(setConfig).catch(() => {})
+    api
+      .getConfig()
+      .then((cfg) => {
+        setConfig(cfg)
+        // 처음엔 사용 가능한 AI 전체를 선택(기존과 동일한 3AI 토론)
+        setSelectedAis((prev) =>
+          prev != null ? prev : (cfg.participants || []).filter((p) => p.available).map((p) => p.id)
+        )
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -230,6 +240,7 @@ export default function App() {
       case 'meta':
         r.participants = evt.participants
         r.is_build = evt.is_build
+        r.single = evt.single || (evt.participants || []).length <= 1
         break
       case 'status':
         if (r.currentStep && r.currentStep !== evt.step && !r.completed.includes(r.currentStep)) {
@@ -259,6 +270,7 @@ export default function App() {
           is_build: evt.is_build,
         }
         setPreview(evt.content)
+        setRunError('') // 최종 도달 → 진행 중 떴던 일시적 오류 문구 해제
         break
       case 'error':
         setRunError(evt.error)
@@ -345,7 +357,10 @@ export default function App() {
           return
         }
         const rr = runRef.current
-        if (rr && rr.reconnecting) rr.reconnecting = false
+        if (rr && rr.reconnecting) {
+          rr.reconnecting = false
+          setRunError('') // 재접속 성공 → 오류 문구 해제
+        }
         handleAskEventWithDone(evt)
       },
       () => {
@@ -383,11 +398,16 @@ export default function App() {
     setTimeout(maybeProcessQueue, 400)
   }
 
-  function newRun(question, conversationId) {
+  function newRun(question, conversationId, aiIds) {
+    const sel = aiIds && aiIds.length ? aiIds : null
+    const parts = (config?.participants || []).filter(
+      (p) => p.available && (!sel || sel.includes(p.id))
+    )
     return {
       question,
       convId: conversationId || null,
-      participants: (config?.participants || []).filter((p) => p.available),
+      participants: parts,
+      single: parts.length <= 1,
       currentStep: null,
       stepLabel: '',
       completed: [],
@@ -397,7 +417,8 @@ export default function App() {
     }
   }
 
-  function runAsk(question, conversationId) {
+  function runAsk(question, conversationId, aiIds) {
+    const ais = aiIds !== undefined ? aiIds : selectedAis
     clearReconnect()
     busyRef.current = true
     setSending(true)
@@ -405,11 +426,11 @@ export default function App() {
     setRunError('')
     setMobileTab('chat')
     setActiveId(conversationId || null)
-    runRef.current = newRun(question, conversationId)
+    runRef.current = newRun(question, conversationId, ais)
     setRun({ ...runRef.current })
     abortRef.current = streamPost(
       '/api/ask',
-      { question, conversation_id: conversationId },
+      { question, conversation_id: conversationId, ai_ids: ais },
       handleAskEventWithDone,
       onAskStreamError
     )
@@ -455,7 +476,7 @@ export default function App() {
     queue.remove(item.ts)
     setQueueCount(queue.count())
     showToast('예약 질문을 시작합니다…')
-    runAsk(item.question, item.conversation_id || null)
+    runAsk(item.question, item.conversation_id || null, item.ai_ids)
   }
 
   // 오프라인에서 수정한 미리보기를 서버와 동기화
@@ -542,14 +563,27 @@ export default function App() {
 
     // 새 질문
     if (!online) {
-      queue.add({ question: text, conversation_id: activeId, ts: Date.now() })
+      queue.add({ question: text, conversation_id: activeId, ai_ids: selectedAis, ts: Date.now() })
       setQueueCount(queue.count())
       setInput('')
       showToast('오프라인 — 예약 질문함에 저장했어요. 연결되면 자동으로 시작됩니다.')
       return
     }
     setInput('')
-    runAsk(text, activeId)
+    runAsk(text, activeId, selectedAis)
+  }
+
+  // 질문에 참여할 AI 선택 토글(최소 1개는 유지)
+  function toggleAi(id) {
+    setSelectedAis((prev) => {
+      const cur = prev || []
+      if (cur.includes(id)) {
+        if (cur.length <= 1) return cur // 최소 1개는 남긴다
+        return cur.filter((x) => x !== id)
+      }
+      const order = (config?.participants || []).map((p) => p.id)
+      return order.filter((x) => cur.includes(x) || x === id)
+    })
   }
 
   // 백엔드가 마지막에 보내는 'done' 이벤트를 감지해 마무리한다.
@@ -630,9 +664,14 @@ export default function App() {
     }
     setMockupLoading(true)
     try {
+      // 원래 사용자의 디자인 요청(첫 질문)까지 함께 넘겨 톤·레퍼런스가 묻히지 않게 한다.
+      const firstQ = messages.find((m) => !m.refine)?.question || ''
+      const briefText = [firstQ && `원래 요청: ${firstQ}`, preview || '']
+        .filter(Boolean)
+        .join('\n\n')
       const r = await api.makeMockup({
         conversation_id: activeId,
-        brief: instruction ? undefined : preview || '',
+        brief: instruction ? undefined : briefText,
         instruction: instruction || undefined,
         current_html: instruction ? mockup : undefined,
       })
@@ -784,6 +823,34 @@ export default function App() {
                   <button className={mode === 'refine' ? 'on' : ''} onClick={() => setMode('refine')}>
                     미리보기 고치기
                   </button>
+                </div>
+              )}
+              {mode === 'ask' && (config?.participants || []).some((p) => p.available) && (
+                <div className="ai-select">
+                  <span className="ai-select-label">질문할 AI</span>
+                  {config.participants
+                    .filter((p) => p.available)
+                    .map((p) => {
+                      const on = (selectedAis || []).includes(p.id)
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`ai-pill ${on ? 'on' : ''}`}
+                          style={{ '--dot': p.color }}
+                          onClick={() => toggleAi(p.id)}
+                          title={on ? '끄기' : '켜기'}
+                        >
+                          <span className="ai-dot" />
+                          {p.name}
+                        </button>
+                      )
+                    })}
+                  <span className="ai-select-hint">
+                    {(selectedAis || []).length <= 1
+                      ? '· 단독 답변'
+                      : `· ${(selectedAis || []).length}개 AI 토론`}
+                  </span>
                 </div>
               )}
               <div className="input-row">

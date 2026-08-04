@@ -8,31 +8,37 @@ const STEPS = [
 
 export default function DebateProgress({ run }) {
   const { stepLabel, currentStep, completed = [], participants = [], aiStatus = {} } = run
+  const single = run.single || participants.length <= 1
 
   return (
     <div className="debate">
       <div className="debate-status">
         <div className="spinner" />
-        <span>{stepLabel || '토론을 시작합니다…'}</span>
+        <span>{stepLabel || (single ? '답변을 준비합니다…' : '토론을 시작합니다…')}</span>
       </div>
 
-      <div className="steps">
-        {STEPS.map((s) => {
-          const isActive = s.key === currentStep
-          const isDone = completed.includes(s.key)
-          return (
-            <span
-              key={s.key}
-              className={`step-chip ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
-            >
-              {isDone ? '✓ ' : ''}
-              {s.label}
-            </span>
-          )
-        })}
-      </div>
+      {!single && (
+        <div className="steps">
+          {STEPS.map((s) => {
+            const isActive = s.key === currentStep
+            const isDone = completed.includes(s.key)
+            return (
+              <span
+                key={s.key}
+                className={`step-chip ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
+              >
+                {isDone ? '✓ ' : ''}
+                {s.label}
+              </span>
+            )
+          })}
+        </div>
+      )}
 
-      <div className="ai-cards">
+      <div
+        className="ai-cards"
+        style={{ gridTemplateColumns: `repeat(${Math.min(participants.length || 1, 3)}, 1fr)` }}
+      >
         {participants.map((p) => {
           const st = aiStatus[p.id] || { status: 'wait' }
           return (

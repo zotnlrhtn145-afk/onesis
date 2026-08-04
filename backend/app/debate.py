@@ -69,12 +69,26 @@ def resolve_lead(part: str, ais: list[str]):
     return lead if (lead and lead in ais) else None
 
 
-async def run_debate(question: str) -> AsyncIterator[dict[str, Any]]:
+async def run_debate(
+    question: str, selected: list[str] | None = None
+) -> AsyncIterator[dict[str, Any]]:
     is_build = prompts.detect_build(question)
     part = prompts.detect_part(question)
-    ais = ai_clients.available_ids()
+    available = ai_clients.available_ids()
+    # 사용자가 고른 AI만 남긴다(순서는 config 기준 유지). 고른 게 없으면 전체 사용.
+    if selected:
+        ais = [a for a in available if a in selected]
+        if not ais:
+            ais = available
+    else:
+        ais = available
     if not ais:
         yield {"type": "error", "error": "사용 가능한 AI가 없습니다. API 키를 설정하세요."}
+        return
+    # 한 개만 고르면 토론 없이 그 AI가 바로 답한다.
+    if len(ais) == 1:
+        async for e in _run_single(question, ais[0], is_build, part):
+            yield e
         return
     lead = resolve_lead(part, ais)
     if lead is None:
@@ -83,6 +97,35 @@ async def run_debate(question: str) -> AsyncIterator[dict[str, Any]]:
     else:
         async for e in _run_lead(question, ais, lead, is_build, part):
             yield e
+
+
+async def _run_single(
+    question: str, ai: str, is_build: bool, part: str
+) -> AsyncIterator[dict[str, Any]]:
+    """AI 한 개만 선택했을 때: 토론 없이 그 AI가 직접 답한다."""
+    name = config.name_of(ai)
+    part_label = config.PART_LABELS.get(part, part)
+    transcript: dict[str, Any] = {
+        "participants": _participants([ai]),
+        "is_build": is_build, "part": part, "lead": ai, "mode": "single",
+    }
+    yield {"type": "meta", "is_build": is_build, "part": part, "lead": ai,
+           "single": True, "part_label": part_label,
+           "participants": transcript["participants"]}
+    yield {"type": "status", "step": "final", "label": f"{name}가 답변을 작성 중…"}
+    yield {"type": "ai_start", "ai": ai, "stage": "final"}
+    try:
+        doc = await ai_clients.call_ai(
+            ai, prompts.initial_system(name), prompts.initial_user(question, is_build))
+    except ai_clients.AIError as e:
+        yield {"type": "ai_error", "ai": ai, "stage": "final", "error": str(e)}
+        yield {"type": "error", "error": f"{name}가 응답하지 못했습니다: {e}"}
+        return
+    doc = _append_build_note(doc, part)
+    transcript["final_by"] = ai
+    yield {"type": "ai_done", "ai": ai, "stage": "final", "content": doc}
+    yield {"type": "preview", "content": doc}
+    yield {"type": "final", "content": doc, "transcript": transcript, "is_build": is_build}
 
 
 async def _run_symmetric(

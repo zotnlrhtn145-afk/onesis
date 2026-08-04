@@ -24,7 +24,9 @@ def running_ids() -> list[str]:
     return [cid for cid, j in _jobs.items() if not j.get("done")]
 
 
-def start_job(conversation_id: str, question: str) -> dict[str, Any]:
+def start_job(
+    conversation_id: str, question: str, selected: list[str] | None = None
+) -> dict[str, Any]:
     """이 대화의 토론 작업을 시작(이미 진행 중이면 그것을 반환)."""
     existing = _jobs.get(conversation_id)
     if existing and not existing["done"]:
@@ -36,11 +38,14 @@ def start_job(conversation_id: str, question: str) -> dict[str, Any]:
         "done": False,
     }
     _jobs[conversation_id] = job
-    asyncio.create_task(_run(conversation_id, question, job))
+    asyncio.create_task(_run(conversation_id, question, job, selected))
     return job
 
 
-async def _run(conversation_id: str, question: str, job: dict[str, Any]) -> None:
+async def _run(
+    conversation_id: str, question: str, job: dict[str, Any],
+    selected: list[str] | None = None,
+) -> None:
     def emit(evt: dict[str, Any]) -> None:
         job["buffer"].append(evt)
         for q in list(job["subscribers"]):
@@ -53,7 +58,7 @@ async def _run(conversation_id: str, question: str, job: dict[str, Any]) -> None
     transcript: dict[str, Any] | None = None
     is_build = False
     try:
-        async for evt in debate.run_debate(question):
+        async for evt in debate.run_debate(question, selected):
             if evt.get("type") == "final":
                 final_content = evt.get("content")
                 transcript = evt.get("transcript")
@@ -108,7 +113,13 @@ async def subscribe(conversation_id: str) -> AsyncIterator[dict[str, Any]]:
     job["subscribers"].append(q)
     try:
         while True:
-            evt = await q.get()
+            try:
+                # 긴 AI 호출로 이벤트가 한동안 없어도 15초마다 하트비트를 보내
+                # 프록시·모바일이 유휴 연결로 끊는 것을 막는다.
+                evt = await asyncio.wait_for(q.get(), timeout=15)
+            except asyncio.TimeoutError:
+                yield {"type": "ping"}
+                continue
             yield evt
             if evt.get("type") == "done":
                 break

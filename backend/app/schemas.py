@@ -1,7 +1,7 @@
 """요청 본문 스키마."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -21,6 +21,7 @@ class RenameReq(BaseModel):
 class AskReq(BaseModel):
     question: str
     conversation_id: Optional[str] = None
+    ai_ids: Optional[List[str]] = None  # 참여시킬 AI 선택(없으면 사용 가능한 전체)
 
 
 class RefineReq(BaseModel):

@@ -21,11 +21,14 @@ export default function MessageResult({ message }) {
 
   const partLabel = PART_LABELS[transcript.part] || null
   const lead = transcript.lead
-  const badge = partLabel
-    ? lead
-      ? `${partLabel} · ${nameOf(lead)} 주도`
-      : `${partLabel} · 다같이`
-    : null
+  const badge =
+    transcript.mode === 'single'
+      ? `${nameOf(lead)} 단독 답변`
+      : partLabel
+      ? lead
+        ? `${partLabel} · ${nameOf(lead)} 주도`
+        : `${partLabel} · 다같이`
+      : null
 
   return (
     <div className="result">

@@ -99,6 +99,10 @@ def _sse(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
 
+# SSE 주석 라인(클라이언트는 무시). 유휴 연결 유지용 하트비트.
+_KEEPALIVE = ": ping\n\n"
+
+
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
@@ -119,14 +123,14 @@ async def api_ask(req: schemas.AskReq) -> StreamingResponse:
 
     # 토론을 HTTP 연결과 분리해 백그라운드로 시작한다.
     # → 페이지를 벗어나거나 인터넷이 끊겨도 서버는 끝까지 진행해 결론을 저장한다.
-    jobs.start_job(conversation_id, question)
+    jobs.start_job(conversation_id, question, req.ai_ids)
 
     async def gen() -> AsyncIterator[str]:
         yield _sse({"type": "conversation", "id": conversation_id,
                     "is_new": is_new, "question": question})
         # 진행 상황을 관찰만 한다. 여기서 연결이 끊겨도 토론 자체는 계속된다.
         async for evt in jobs.subscribe(conversation_id):
-            yield _sse(evt)
+            yield _KEEPALIVE if evt.get("type") == "ping" else _sse(evt)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=_SSE_HEADERS)
 
@@ -149,7 +153,7 @@ async def api_live(cid: str) -> StreamingResponse:
         yield _sse({"type": "conversation", "id": cid, "is_new": False,
                     "question": job.get("question", "")})
         async for evt in jobs.subscribe(cid):
-            yield _sse(evt)
+            yield _KEEPALIVE if evt.get("type") == "ping" else _sse(evt)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=_SSE_HEADERS)
 
@@ -221,8 +225,14 @@ async def api_mockup(req: schemas.MockupReq) -> dict[str, str]:
     else:
         if not ais:
             raise HTTPException(status_code=400, detail="사용 가능한 AI가 없습니다.")
-        designer = config.ROLE_LEADS.get("design")
-        if designer not in ais:
+        # 목업은 렌더링 완성도가 중요 → 가장 정교한 모델(사회자=클로드) 우선,
+        # 없으면 디자인 담당, 그것도 없으면 사용 가능한 아무 AI.
+        designer = None
+        for cand in (config.MODERATOR_ID, config.ROLE_LEADS.get("design")):
+            if cand in ais:
+                designer = cand
+                break
+        if designer is None:
             designer = ais[0]
         if req.instruction and req.current_html:
             user = prompts.mockup_refine_user(req.current_html, req.instruction)
@@ -230,7 +240,7 @@ async def api_mockup(req: schemas.MockupReq) -> dict[str, str]:
             user = prompts.mockup_user(req.brief or "")
         try:
             raw = await ai_clients.call_ai(
-                designer, prompts.mockup_system(), user, max_tokens=4000
+                designer, prompts.mockup_system(), user, max_tokens=6000
             )
         except ai_clients.AIError as e:
             raise HTTPException(status_code=502, detail=str(e))
