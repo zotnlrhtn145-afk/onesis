@@ -36,6 +36,8 @@ GEMINI_MODEL = _get("GEMINI_MODEL", "gemini-2.0-flash")
 
 # 각 AI 응답 최대 토큰 수
 MAX_TOKENS = int(_get("MAX_TOKENS", "2000"))
+# 최종 정리(답변 + '이렇게 결론이 나왔어요' 섹션)는 잘리지 않게 더 넉넉히
+FINAL_MAX_TOKENS = int(_get("FINAL_MAX_TOKENS", "4000"))
 # 한 AI 호출 타임아웃(초)
 AI_TIMEOUT = int(_get("AI_TIMEOUT", "120"))
 

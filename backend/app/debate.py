@@ -116,7 +116,8 @@ async def _run_single(
     yield {"type": "ai_start", "ai": ai, "stage": "final"}
     try:
         doc = await ai_clients.call_ai(
-            ai, prompts.initial_system(name), prompts.initial_user(question, is_build))
+            ai, prompts.initial_system(name), prompts.initial_user(question, is_build),
+            max_tokens=config.FINAL_MAX_TOKENS)
     except ai_clients.AIError as e:
         yield {"type": "ai_error", "ai": ai, "stage": "final", "error": str(e)}
         yield {"type": "error", "error": f"{name}가 응답하지 못했습니다: {e}"}
@@ -256,6 +257,7 @@ async def _run_symmetric(
             final_doc = await ai_clients.call_ai(
                 mod, prompts.moderator_system(),
                 prompts.moderator_user(question, answers, critiques2, is_build),
+                max_tokens=config.FINAL_MAX_TOKENS,
             )
             moderator = mod
             break
@@ -325,7 +327,8 @@ async def _run_lead(
         try:
             doc = await ai_clients.call_ai(
                 lead, prompts.lead_final_system(lead_name),
-                prompts.lead_final_user(question, current, feedback, is_build))
+                prompts.lead_final_user(question, current, feedback, is_build),
+                max_tokens=config.FINAL_MAX_TOKENS)
         except ai_clients.AIError:
             doc = current
         doc = _append_build_note(doc, part)
