@@ -228,25 +228,31 @@ async def api_mockup(req: schemas.MockupReq) -> dict[str, str]:
     else:
         if not ais:
             raise HTTPException(status_code=400, detail="사용 가능한 AI가 없습니다.")
-        # 목업은 렌더링 완성도가 중요 → 가장 정교한 모델(사회자=클로드) 우선,
-        # 없으면 디자인 담당, 그것도 없으면 사용 가능한 아무 AI.
-        designer = None
-        for cand in (config.MODERATOR_ID, config.ROLE_LEADS.get("design")):
-            if cand in ais:
-                designer = cand
-                break
-        if designer is None:
-            designer = ais[0]
+        # 디자인은 '디자인 담당(제미나이)'이 주도한다. 실패하면 다음 순서로 폴백.
+        order: list[str] = []
+        for cand in (config.ROLE_LEADS.get("design"), config.MODERATOR_ID):
+            if cand in ais and cand not in order:
+                order.append(cand)
+        for a in ais:
+            if a not in order:
+                order.append(a)
         if req.instruction and req.current_html:
             user = prompts.mockup_refine_user(req.current_html, req.instruction)
         else:
             user = prompts.mockup_user(req.brief or "")
-        try:
-            raw = await ai_clients.call_ai(
-                designer, prompts.mockup_system(), user, max_tokens=6000
-            )
-        except ai_clients.AIError as e:
-            raise HTTPException(status_code=502, detail=str(e))
+        raw = None
+        last_err: Exception | None = None
+        for d in order:
+            try:
+                raw = await ai_clients.call_ai(
+                    d, prompts.mockup_system(), user, max_tokens=6000
+                )
+                break
+            except ai_clients.AIError as e:
+                last_err = e
+                continue
+        if not raw:
+            raise HTTPException(status_code=502, detail=str(last_err) or "화면 생성에 실패했어요.")
         html = _clean_html(raw)
     if req.conversation_id:
         try:
