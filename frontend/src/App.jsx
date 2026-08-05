@@ -8,7 +8,6 @@ import MessageResult from './components/MessageResult'
 import PreviewPanel from './components/PreviewPanel'
 import BuildModal from './components/BuildModal'
 import StatsView from './components/StatsView'
-import PlansView from './components/PlansView'
 import Icon from './components/Icon'
 import AiLogo from './components/AiLogo'
 
@@ -194,7 +193,8 @@ export default function App() {
   async function selectConversation(id) {
     if (sending) return
     setSidebarOpen(false)
-    setView('home')
+    const picked = conversations.find((c) => c.id === id)
+    setView(picked?.kind === 'plan' ? 'plans' : 'home')
     setActiveId(id)
     setRun(null)
     setRunError('')
@@ -247,7 +247,28 @@ export default function App() {
     setMobileTab('chat')
     setPreviewOpen(false)
     userClosedPreviewRef.current = false
-    setView('home')
+    if (view === 'stats') setView('home') // 통계에서 새 대화 누르면 홈으로
+  }
+
+  // 섹션 이동(홈/기획안/통계). 홈·기획안은 각자의 새 대화로 시작한다.
+  function navigate(v) {
+    setSidebarOpen(false)
+    if (v === view) return
+    setView(v)
+    if ((v === 'home' || v === 'plans') && !sending) {
+      setActiveId(null)
+      setMessages([])
+      setRun(null)
+      setRunError('')
+      setPreview('')
+      setMockup('')
+      setPreviewLive(false)
+      setEditing(false)
+      setMode('ask')
+      setMobileTab('chat')
+      setPreviewOpen(false)
+      userClosedPreviewRef.current = false
+    }
   }
 
   async function deleteConversation(id) {
@@ -274,7 +295,7 @@ export default function App() {
         if (evt.is_new) {
           setMockup('')
           setConversations((cs) => [
-            { id: evt.id, title: evt.question.slice(0, 60), updated_at: '' },
+            { id: evt.id, title: evt.question.slice(0, 60), updated_at: '', kind: r?.kind || 'chat' },
             ...cs,
           ])
         }
@@ -313,9 +334,10 @@ export default function App() {
         }
         setPreview(evt.content)
         setRunError('') // 최종 도달 → 진행 중 떴던 일시적 오류 문구 해제
-        // 결과가 나오면 데스크톱에서 미리보기 패널을 한 번 자동으로 열어준다
-        // (사용자가 직접 닫았던 경우엔 존중해서 열지 않음)
-        if (window.innerWidth > 900 && !userClosedPreviewRef.current) setPreviewOpen(true)
+        // 기획안(plan) 대화일 때만 데스크톱에서 미리보기 패널을 한 번 자동으로 연다
+        if (r?.kind === 'plan' && window.innerWidth > 900 && !userClosedPreviewRef.current) {
+          setPreviewOpen(true)
+        }
         break
       case 'error':
         setRunError(evt.error)
@@ -462,8 +484,9 @@ export default function App() {
     }
   }
 
-  function runAsk(question, conversationId, aiIds) {
+  function runAsk(question, conversationId, aiIds, kind) {
     const ais = aiIds !== undefined ? aiIds : selectedAis
+    const k = kind || (view === 'plans' ? 'plan' : 'chat')
     clearReconnect()
     busyRef.current = true
     setSending(true)
@@ -472,10 +495,11 @@ export default function App() {
     setMobileTab('chat')
     setActiveId(conversationId || null)
     runRef.current = newRun(question, conversationId, ais)
+    runRef.current.kind = k
     setRun({ ...runRef.current })
     abortRef.current = streamPost(
       '/api/ask',
-      { question, conversation_id: conversationId, ai_ids: ais },
+      { question, conversation_id: conversationId, ai_ids: ais, kind: k },
       handleAskEventWithDone,
       onAskStreamError
     )
@@ -521,7 +545,7 @@ export default function App() {
     queue.remove(item.ts)
     setQueueCount(queue.count())
     showToast('예약 질문을 시작합니다…')
-    runAsk(item.question, item.conversation_id || null, item.ai_ids)
+    runAsk(item.question, item.conversation_id || null, item.ai_ids, item.kind)
   }
 
   // 오프라인에서 수정한 미리보기를 서버와 동기화
@@ -607,15 +631,16 @@ export default function App() {
     }
 
     // 새 질문
+    const kind = view === 'plans' ? 'plan' : 'chat'
     if (!online) {
-      queue.add({ question: text, conversation_id: activeId, ai_ids: selectedAis, ts: Date.now() })
+      queue.add({ question: text, conversation_id: activeId, ai_ids: selectedAis, kind, ts: Date.now() })
       setQueueCount(queue.count())
       setInput('')
       showToast('오프라인 — 예약 질문함에 저장했어요. 연결되면 자동으로 시작됩니다.')
       return
     }
     setInput('')
-    runAsk(text, activeId, selectedAis)
+    runAsk(text, activeId, selectedAis, kind)
   }
 
   // 질문에 참여할 AI 선택 토글(최소 1개는 유지)
@@ -800,27 +825,17 @@ export default function App() {
         onLogout={doLogout}
         open={sidebarOpen}
         view={view}
-        onNavigate={(v) => {
-          setView(v)
-          setSidebarOpen(false)
-        }}
+        onNavigate={navigate}
       />
       <div className={`backdrop ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {view === 'stats' && <StatsView onMenu={() => setSidebarOpen(true)} />}
-      {view === 'plans' && (
-        <PlansView
-          conversations={conversations}
-          onSelect={selectConversation}
-          onNew={newConversation}
-          onMenu={() => setSidebarOpen(true)}
-        />
-      )}
 
       <div
         className="main-area"
         data-mobile={mobileTab}
-        style={view === 'home' ? undefined : { display: 'none' }}
+        data-notabs={view !== 'plans' ? 'true' : undefined}
+        style={view === 'stats' ? { display: 'none' } : undefined}
       >
         <div className="chat-pane">
           <div className="topbar">
@@ -833,7 +848,7 @@ export default function App() {
             <span style={{ fontWeight: 800 }}>오네시스</span>
           </div>
 
-          {preview && !previewOpen && (
+          {preview && !previewOpen && view === 'plans' && (
             <button className="preview-toggle-pill" onClick={openPreview} title="미리보기 패널 열기">
               <Icon name="panel" size={16} />
               미리보기
@@ -844,8 +859,12 @@ export default function App() {
 
           {showWelcome ? (
             <div className="welcome">
-              <h1>오네시스</h1>
-              <p>무엇이 궁금하세요? 3개의 AI가 토론해 최선의 답을 만들어 드려요.</p>
+              <h1>{view === 'plans' ? '기획안 만들기' : '오네시스'}</h1>
+              <p>
+                {view === 'plans'
+                  ? '무엇을 만들까요? 3개의 AI가 환경·화면·기능까지 상세한 기획안을 만들어 드려요.'
+                  : '무엇이 궁금하세요? 3개의 AI가 토론해 최선의 답을 만들어 드려요.'}
+              </p>
             </div>
           ) : (
             <div className="messages">
@@ -862,7 +881,7 @@ export default function App() {
                     <div key={i}>
                       <div className="q-bubble">{m.question}</div>
                       <MessageResult message={m} />
-                      {i === lastResultIdx && preview && (
+                      {i === lastResultIdx && preview && view === 'plans' && (
                         <button className="artifact-card" onClick={openPreview}>
                           <span className="artifact-ic">
                             <Icon name="doc" size={22} />
@@ -914,7 +933,7 @@ export default function App() {
                   ⏳ 대기 중인 질문 {queueCount}개 — 연결되면 자동으로 시작해요
                 </div>
               )}
-              {preview && (
+              {preview && view === 'plans' && (
                 <div className="mode-toggle">
                   <button className={mode === 'ask' ? 'on' : ''} onClick={() => setMode('ask')}>
                     새 질문
@@ -959,9 +978,11 @@ export default function App() {
                   placeholder={
                     mode === 'refine'
                       ? '예) 기술 구성 부분을 더 쉽게 풀어서 써줘'
-                      : online
-                      ? '무엇이든 물어보세요…'
-                      : '오프라인 — 질문을 쓰면 예약함에 저장돼요'
+                      : !online
+                      ? '오프라인 — 질문을 쓰면 예약함에 저장돼요'
+                      : view === 'plans'
+                      ? '무엇을 만들지 설명해 주세요… (예: 헬스장 회원관리 웹앱)'
+                      : '무엇이든 물어보세요…'
                   }
                   value={input}
                   onChange={(e) => {

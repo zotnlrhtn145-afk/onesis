@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,8 +58,8 @@ def api_login(req: schemas.LoginReq) -> dict[str, str]:
 
 # ---------------- 대화 관리 (인증 필요) ----------------
 @app.get("/api/conversations", dependencies=[Depends(auth.require_auth)])
-def api_list_conversations() -> list[dict[str, Any]]:
-    return db.list_conversations()
+def api_list_conversations(kind: Optional[str] = None) -> list[dict[str, Any]]:
+    return db.list_conversations(kind)
 
 
 @app.post("/api/conversations", dependencies=[Depends(auth.require_auth)])
@@ -117,14 +117,16 @@ async def api_ask(req: schemas.AskReq) -> StreamingResponse:
     if not question:
         raise HTTPException(status_code=400, detail="질문을 입력하세요.")
 
+    kind = req.kind if req.kind in ("chat", "plan") else "chat"
     conversation_id = req.conversation_id
     is_new = not conversation_id
     if is_new:
-        conversation_id = db.create_conversation(question)
+        conversation_id = db.create_conversation(question, kind=kind)
 
     # 토론을 HTTP 연결과 분리해 백그라운드로 시작한다.
     # → 페이지를 벗어나거나 인터넷이 끊겨도 서버는 끝까지 진행해 결론을 저장한다.
-    jobs.start_job(conversation_id, question, req.ai_ids)
+    # 기획안(plan) 모드면 상세 개발 기획서(force_build)로 만든다.
+    jobs.start_job(conversation_id, question, req.ai_ids, force_build=(kind == "plan"))
 
     async def gen() -> AsyncIterator[str]:
         yield _sse({"type": "conversation", "id": conversation_id,

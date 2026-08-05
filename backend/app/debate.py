@@ -70,10 +70,13 @@ def resolve_lead(part: str, ais: list[str]):
 
 
 async def run_debate(
-    question: str, selected: list[str] | None = None
+    question: str, selected: list[str] | None = None, force_build: bool = False
 ) -> AsyncIterator[dict[str, Any]]:
-    is_build = prompts.detect_build(question)
+    is_build = force_build or prompts.detect_build(question)
     part = prompts.detect_part(question)
+    # 기획안(제작) 모드인데 파트가 일반이면 '기획'으로 취급(상세 개발 기획서)
+    if force_build and part not in ("build", "design", "idea"):
+        part = "plan"
     available = ai_clients.available_ids()
     # 사용자가 고른 AI만 남긴다(순서는 config 기준 유지). 고른 게 없으면 전체 사용.
     if selected:

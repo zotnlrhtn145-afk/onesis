@@ -41,6 +41,11 @@ def init_db() -> None:
             conn.execute("ALTER TABLE conversations ADD COLUMN mockup TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # 이미 있음
+        # 대화 종류: 'chat'(홈=일반 질문) | 'plan'(기획안=제작 기획)
+        try:
+            conn.execute("ALTER TABLE conversations ADD COLUMN kind TEXT DEFAULT 'chat'")
+        except sqlite3.OperationalError:
+            pass  # 이미 있음
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS messages (
@@ -57,23 +62,32 @@ def init_db() -> None:
         )
 
 
-def create_conversation(title: str) -> str:
+def create_conversation(title: str, kind: str = "chat") -> str:
     cid = uuid.uuid4().hex
     now = _now()
     title = (title or "새 대화").strip()[:60] or "새 대화"
+    kind = kind if kind in ("chat", "plan") else "chat"
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO conversations (id, title, preview, created_at, updated_at) VALUES (?,?,?,?,?)",
-            (cid, title, "", now, now),
+            "INSERT INTO conversations (id, title, preview, kind, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,?)",
+            (cid, title, "", kind, now, now),
         )
     return cid
 
 
-def list_conversations() -> list[dict[str, Any]]:
+def list_conversations(kind: str | None = None) -> list[dict[str, Any]]:
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT id, title, updated_at FROM conversations ORDER BY updated_at DESC"
-        ).fetchall()
+        if kind in ("chat", "plan"):
+            rows = conn.execute(
+                "SELECT id, title, kind, updated_at FROM conversations "
+                "WHERE kind=? ORDER BY updated_at DESC",
+                (kind,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, title, kind, updated_at FROM conversations ORDER BY updated_at DESC"
+            ).fetchall()
     return [dict(r) for r in rows]
 
 

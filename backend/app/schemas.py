@@ -22,6 +22,7 @@ class AskReq(BaseModel):
     question: str
     conversation_id: Optional[str] = None
     ai_ids: Optional[List[str]] = None  # 참여시킬 AI 선택(없으면 사용 가능한 전체)
+    kind: Optional[str] = None  # 'chat'(홈=일반) | 'plan'(기획안=제작 기획)
 
 
 class RefineReq(BaseModel):

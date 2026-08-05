@@ -622,3 +622,10 @@ button svg { flex-shrink: 0; }
 /* AI 선택: 로고 전용 칩(글씨 없이 브랜드 로고만) */
 .ai-pill.logo-only { padding: 6px 9px; gap: 0; }
 .ai-pill.logo-only svg { display: block; }
+
+/* 홈(일반 채팅)에선 모바일 미리보기 탭을 숨기고 채팅이 화면을 꽉 채움 */
+@media (max-width: 900px) {
+  .main-area[data-notabs='true'] .mobile-tabs { display: none; }
+  .main-area[data-notabs='true'] .chat-pane,
+  .main-area[data-notabs='true'] .preview-pane { bottom: env(safe-area-inset-bottom, 0px); }
+}

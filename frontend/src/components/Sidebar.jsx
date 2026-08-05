@@ -19,6 +19,9 @@ export default function Sidebar({
   view,
   onNavigate,
 }) {
+  const wantKind = view === 'plans' ? 'plan' : 'chat'
+  const filtered =
+    view === 'stats' ? [] : conversations.filter((c) => (c.kind || 'chat') === wantKind)
   return (
     <aside className={`sidebar ${open ? 'open' : ''}`}>
       <div className="sidebar-head">
@@ -41,12 +44,16 @@ export default function Sidebar({
 
       <button className="new-chat-btn" onClick={onNew}>
         <Icon name="plus" size={17} />
-        새 대화
+        {view === 'plans' ? '새 기획안' : '새 대화'}
       </button>
 
       <div className="conv-list">
-        {conversations.length === 0 && <div className="conv-empty">아직 기획안이 없어요.</div>}
-        {conversations.map((c) => (
+        {filtered.length === 0 && (
+          <div className="conv-empty">
+            {view === 'plans' ? '아직 기획안이 없어요.' : '아직 대화가 없어요.'}
+          </div>
+        )}
+        {filtered.map((c) => (
           <div
             key={c.id}
             className={`conv-item ${c.id === activeId && view !== 'stats' ? 'active' : ''}`}

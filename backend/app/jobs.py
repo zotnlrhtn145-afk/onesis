@@ -25,7 +25,8 @@ def running_ids() -> list[str]:
 
 
 def start_job(
-    conversation_id: str, question: str, selected: list[str] | None = None
+    conversation_id: str, question: str, selected: list[str] | None = None,
+    force_build: bool = False,
 ) -> dict[str, Any]:
     """이 대화의 토론 작업을 시작(이미 진행 중이면 그것을 반환)."""
     existing = _jobs.get(conversation_id)
@@ -38,13 +39,13 @@ def start_job(
         "done": False,
     }
     _jobs[conversation_id] = job
-    asyncio.create_task(_run(conversation_id, question, job, selected))
+    asyncio.create_task(_run(conversation_id, question, job, selected, force_build))
     return job
 
 
 async def _run(
     conversation_id: str, question: str, job: dict[str, Any],
-    selected: list[str] | None = None,
+    selected: list[str] | None = None, force_build: bool = False,
 ) -> None:
     def emit(evt: dict[str, Any]) -> None:
         job["buffer"].append(evt)
@@ -59,7 +60,7 @@ async def _run(
     is_build = False
     last_preview = None  # 최종본이 안 나와도 마지막 중간본은 저장(유실 방지)
     try:
-        async for evt in debate.run_debate(question, selected):
+        async for evt in debate.run_debate(question, selected, force_build):
             t = evt.get("type")
             if t == "final":
                 final_content = evt.get("content")
